@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { OrderProvider } from './context/OrderContext';
 import WelcomeScreen from './pages/WelcomeScreen';
 import MagnetTypeSelection from './pages/MagnetTypeSelection';
@@ -10,8 +10,6 @@ import OrderSubmitted from './pages/OrderSubmitted';
 import './App.css';
 
 function AppContent() {
-  const [currentPage, setCurrentPage] = useState(0);
-
   const pages = [
     { component: WelcomeScreen, title: 'Welcome' },
     { component: MagnetTypeSelection, title: 'Select Type' },
@@ -21,6 +19,19 @@ function AppContent() {
     { component: ReviewOrder, title: 'Review Order' },
     { component: OrderSubmitted, title: 'Submitted' },
   ];
+
+  const [currentPage, setCurrentPage] = useState(() => {
+    const saved = Number(localStorage.getItem('currentPage'));
+    return Number.isInteger(saved) && saved >= 0 && saved < pages.length ? saved : 0;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('currentPage', String(currentPage));
+    } catch (error) {
+      console.warn('Unable to save current page to localStorage:', error);
+    }
+  }, [currentPage]);
 
   const CurrentPage = pages[currentPage].component;
 
@@ -69,4 +80,3 @@ export default function App() {
     </OrderProvider>
   );
 }
-

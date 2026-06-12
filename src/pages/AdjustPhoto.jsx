@@ -1,15 +1,23 @@
-import React, { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Cropper from 'react-easy-crop';
 import { useOrder } from '../context/OrderContext';
-import { generateCroppedImage, getPreviewDimensions } from '../utils/cropUtils';
+import { generateCroppedImage, getImageDimensions, getPreviewDimensions } from '../utils/cropUtils';
 import '../styles/AdjustPhoto.css';
 
 export default function AdjustPhoto({ onNext }) {
-  const { order, setCrop, setZoom, setCroppedImage } = useOrder();
+  const {
+    order,
+    setCrop,
+    setCroppedAreaPixels,
+    setZoom,
+    setCroppedImage,
+    setCropVerification,
+  } = useOrder();
   const [zoom, setLocalZoom] = useState(order.zoom || 1);
   const [crop, setLocalCrop] = useState(order.crop || { x: 0, y: 0 });
+  const [croppedPixels, setLocalCroppedPixels] = useState(order.croppedAreaPixels);
+  const [previewImage, setPreviewImage] = useState(order.croppedImage);
   const [isGenerating, setIsGenerating] = useState(false);
-  const cropperRef = useRef(null);
 
   const dimensions = getPreviewDimensions(order.magnetType);
 
@@ -18,10 +26,10 @@ export default function AdjustPhoto({ onNext }) {
     setCrop(newCrop);
   };
 
-  const handleZoomChange = (newZoom) => {
+  const handleZoomChange = useCallback((newZoom) => {
     setLocalZoom(newZoom);
     setZoom(newZoom);
-  };
+  }, [setZoom]);
 
   const handleZoomByWheel = useCallback(
     (e) => {
@@ -30,18 +38,70 @@ export default function AdjustPhoto({ onNext }) {
       const newZoom = Math.min(Math.max(zoom + delta, 1), 3);
       handleZoomChange(newZoom);
     },
-    [zoom]
+    [handleZoomChange, zoom]
   );
 
+  const handleCropComplete = useCallback((_, croppedAreaPixels) => {
+    setLocalCroppedPixels(croppedAreaPixels);
+    setCroppedAreaPixels(croppedAreaPixels);
+  }, [setCroppedAreaPixels]);
+
+  useEffect(() => {
+    if (!order.photo || !croppedPixels) {
+      return;
+    }
+
+    let isCurrent = true;
+    const previewTimer = window.setTimeout(async () => {
+      try {
+        const generatedPreview = await generateCroppedImage(
+          order.photo,
+          croppedPixels,
+          order.magnetType
+        );
+
+        if (isCurrent) {
+          setPreviewImage(generatedPreview);
+        }
+      } catch (error) {
+        console.error('Error generating crop preview:', error);
+      }
+    }, 150);
+
+    return () => {
+      isCurrent = false;
+      window.clearTimeout(previewTimer);
+    };
+  }, [order.photo, order.magnetType, croppedPixels]);
+
   const handleNext = async () => {
+    if (!croppedPixels) {
+      alert('Please wait for the crop preview to finish loading.');
+      return;
+    }
+
     setIsGenerating(true);
     try {
       const croppedImage = await generateCroppedImage(
         order.photo,
-        crop,
+        croppedPixels,
         order.magnetType
       );
+      const generatedDimensions = await getImageDimensions(croppedImage);
+      const cropVerification = {
+        magnetType: order.magnetType,
+        cropPosition: crop,
+        zoom,
+        croppedAreaPixels: croppedPixels,
+        generatedImage: generatedDimensions,
+        matchesCropperPixels:
+          generatedDimensions.width === Math.round(croppedPixels.width) &&
+          generatedDimensions.height === Math.round(croppedPixels.height),
+      };
+
       setCroppedImage(croppedImage);
+      setCropVerification(cropVerification);
+      console.info('Crop verification', cropVerification);
       onNext();
     } catch (error) {
       console.error('Error generating cropped image:', error);
@@ -50,6 +110,19 @@ export default function AdjustPhoto({ onNext }) {
       setIsGenerating(false);
     }
   };
+
+  if (!order.photo) {
+    return (
+      <div className="adjust-photo-screen">
+        <div className="adjust-content">
+          <h1>Photo Needed</h1>
+          <p className="subtitle">
+            Please go back and upload your photo again to continue adjusting your magnet.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="adjust-photo-screen">
@@ -67,7 +140,7 @@ export default function AdjustPhoto({ onNext }) {
             showGrid={true}
             onCropChange={handleCropChange}
             onZoomChange={handleZoomChange}
-            onCropAreaChange={() => {}}
+            onCropComplete={handleCropComplete}
           />
         </div>
 
@@ -95,16 +168,19 @@ export default function AdjustPhoto({ onNext }) {
             height: `${dimensions.height}px`,
             borderRadius: dimensions.borderRadius,
           }}>
-            <img 
-              src={order.photo} 
-              alt="Preview" 
-              style={{
-                transform: `translate(-${crop.x}%, -${crop.y}%) scale(${zoom})`,
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-              }}
-            />
+            {order.photo && croppedPixels && previewImage ? (
+              <img 
+                src={previewImage} 
+                alt="Preview" 
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+              />
+            ) : (
+              <div className="preview-loading">Preparing preview...</div>
+            )}
           </div>
           <p className="preview-label">This is how it will look</p>
         </div>
@@ -113,7 +189,7 @@ export default function AdjustPhoto({ onNext }) {
           <button 
             className="next-button" 
             onClick={handleNext}
-            disabled={isGenerating}
+            disabled={isGenerating || !croppedPixels}
           >
             {isGenerating ? 'Processing...' : 'Next'}
           </button>

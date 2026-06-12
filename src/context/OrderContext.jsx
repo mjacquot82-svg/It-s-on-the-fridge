@@ -1,54 +1,158 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import { createContext, useState, useContext, useEffect } from 'react';
 import { createEmailPayload } from '../utils/emailPayload';
 
 const OrderContext = createContext();
 
+const emptyOrder = {
+  magnetType: null,
+  photo: null,
+  crop: { x: 0, y: 0 },
+  croppedAreaPixels: null,
+  zoom: 1,
+  croppedImage: null,
+  cropVerification: null,
+  customerInfo: {
+    firstName: '',
+    lastName: '',
+    phone: '',
+    email: '',
+    quantity: 1,
+    notes: '',
+  },
+};
+
+function parseStoredValue(key, fallback) {
+  try {
+    const saved = localStorage.getItem(key);
+    return saved ? JSON.parse(saved) : fallback;
+  } catch (error) {
+    console.warn(`Unable to load ${key} from localStorage:`, error);
+    return fallback;
+  }
+}
+
+function getImageMetadata(dataUrl) {
+  if (!dataUrl || typeof dataUrl !== 'string') {
+    return null;
+  }
+
+  const match = dataUrl.match(/^data:([^;]+);base64,/);
+
+  return {
+    mimeType: match?.[1] || 'unknown',
+  };
+}
+
+function sanitizeEmailPayload(emailPayload) {
+  if (!emailPayload) {
+    return null;
+  }
+
+  return {
+    to: emailPayload.to,
+    subject: emailPayload.subject,
+    orderId: emailPayload.orderId,
+    orderDate: emailPayload.orderDate,
+    customer: emailPayload.customer,
+    product: emailPayload.product,
+    cropDetails: emailPayload.cropDetails,
+  };
+}
+
+function sanitizeOrderForStorage(orderToStore) {
+  if (!orderToStore) {
+    return null;
+  }
+
+  return {
+    ...orderToStore,
+    photo: null,
+    croppedImage: null,
+    originalImage: getImageMetadata(orderToStore.photo),
+    finalImage: getImageMetadata(orderToStore.croppedImage),
+    emailPayload: sanitizeEmailPayload(orderToStore.emailPayload),
+  };
+}
+
+function saveStoredValue(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.error(`Unable to save ${key} to localStorage:`, error);
+  }
+}
+
+async function sendOrderEmail(order, turnstileToken) {
+  const response = await fetch('/api/send-order-email', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ order, turnstileToken }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.error || 'Unable to send order email. Please try again.');
+  }
+
+  return data;
+}
+
 export function OrderProvider({ children }) {
   const [order, setOrder] = useState(() => {
-    // Load from localStorage if available
-    const saved = localStorage.getItem('currentOrder');
-    return saved ? JSON.parse(saved) : {
-      magnetType: null, // 'round' or 'rectangle'
-      photo: null, // base64 data URL - original uploaded image
-      crop: { x: 0, y: 0 },
-      zoom: 1,
-      croppedImage: null, // Final cropped image
-      customerInfo: {
-        firstName: '',
-        lastName: '',
-        phone: '',
-        email: '',
-        quantity: 1,
-        notes: '',
-      },
-    };
+    const storedOrder = parseStoredValue('currentOrder', emptyOrder);
+    return { ...emptyOrder, ...storedOrder, photo: null, croppedImage: null };
   });
 
   const [orders, setOrders] = useState(() => {
-    const saved = localStorage.getItem('orders');
-    return saved ? JSON.parse(saved) : [];
+    return parseStoredValue('orders', []);
   });
 
-  // Persist order to localStorage
+  const [lastSubmittedOrder, setLastSubmittedOrder] = useState(() => {
+    return parseStoredValue('lastSubmittedOrder', null);
+  });
+
+  // Persist only lightweight metadata. Image data stays in memory.
   useEffect(() => {
-    localStorage.setItem('currentOrder', JSON.stringify(order));
+    saveStoredValue('currentOrder', sanitizeOrderForStorage(order));
   }, [order]);
 
-  // Persist orders to localStorage
+  // Persist only lightweight order history metadata.
   useEffect(() => {
-    localStorage.setItem('orders', JSON.stringify(orders));
+    saveStoredValue('orders', orders.map(sanitizeOrderForStorage));
   }, [orders]);
+
+  // Persist only lightweight submitted-order metadata.
+  useEffect(() => {
+    if (lastSubmittedOrder) {
+      saveStoredValue('lastSubmittedOrder', sanitizeOrderForStorage(lastSubmittedOrder));
+    }
+  }, [lastSubmittedOrder]);
 
   const setMagnetType = (type) => {
     setOrder(prev => ({ ...prev, magnetType: type }));
   };
 
   const setPhoto = (photoData) => {
-    setOrder(prev => ({ ...prev, photo: photoData, crop: { x: 0, y: 0 }, zoom: 1 }));
+    setOrder(prev => ({
+      ...prev,
+      photo: photoData,
+      crop: { x: 0, y: 0 },
+      croppedAreaPixels: null,
+      zoom: 1,
+      croppedImage: null,
+      cropVerification: null,
+    }));
   };
 
   const setCrop = (crop) => {
     setOrder(prev => ({ ...prev, crop }));
+  };
+
+  const setCroppedAreaPixels = (croppedAreaPixels) => {
+    setOrder(prev => ({ ...prev, croppedAreaPixels }));
   };
 
   const setZoom = (zoom) => {
@@ -59,6 +163,10 @@ export function OrderProvider({ children }) {
     setOrder(prev => ({ ...prev, croppedImage }));
   };
 
+  const setCropVerification = (cropVerification) => {
+    setOrder(prev => ({ ...prev, cropVerification }));
+  };
+
   const setCustomerInfo = (info) => {
     setOrder(prev => ({
       ...prev,
@@ -66,60 +174,36 @@ export function OrderProvider({ children }) {
     }));
   };
 
-  const submitOrder = () => {
+  const submitOrder = async (turnstileToken) => {
     const newOrder = {
       ...order,
       id: Date.now(),
       submittedAt: new Date().toISOString(),
     };
+
+    const emailDelivery = await sendOrderEmail(newOrder, turnstileToken);
     
     // Generate email payload for Jennifer
-    const emailPayload = createEmailPayload(newOrder);
+    const emailPayload = sanitizeEmailPayload(createEmailPayload(newOrder));
     
     // Store both the order and email payload
     const storedOrder = {
       ...newOrder,
       emailPayload,
+      emailDelivery,
     };
     
-    setOrders(prev => [...prev, storedOrder]);
+    setOrders(prev => [...prev, sanitizeOrderForStorage(storedOrder)]);
+    setLastSubmittedOrder(storedOrder);
     
     // Reset current order
-    setOrder({
-      magnetType: null,
-      photo: null,
-      crop: { x: 0, y: 0 },
-      zoom: 1,
-      croppedImage: null,
-      customerInfo: {
-        firstName: '',
-        lastName: '',
-        phone: '',
-        email: '',
-        quantity: 1,
-        notes: '',
-      },
-    });
+    setOrder(emptyOrder);
 
     return storedOrder;
   };
 
   const resetOrder = () => {
-    setOrder({
-      magnetType: null,
-      photo: null,
-      crop: { x: 0, y: 0 },
-      zoom: 1,
-      croppedImage: null,
-      customerInfo: {
-        firstName: '',
-        lastName: '',
-        phone: '',
-        email: '',
-        quantity: 1,
-        notes: '',
-      },
-    });
+    setOrder(emptyOrder);
   };
 
   return (
@@ -127,11 +211,14 @@ export function OrderProvider({ children }) {
       value={{
         order,
         orders,
+        lastSubmittedOrder,
         setMagnetType,
         setPhoto,
         setCrop,
+        setCroppedAreaPixels,
         setZoom,
         setCroppedImage,
+        setCropVerification,
         setCustomerInfo,
         submitOrder,
         resetOrder,

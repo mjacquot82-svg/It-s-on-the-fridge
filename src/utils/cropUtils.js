@@ -1,70 +1,66 @@
-/**
- * Generates a cropped image canvas based on crop coordinates
- */
-export async function generateCroppedImage(imageSrc, crop, magnetType) {
-  return new Promise((resolve) => {
+function createImage(imageSrc) {
+  return new Promise((resolve, reject) => {
     const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
     image.src = imageSrc;
+  });
+}
+
+/**
+ * Generates the final image from react-easy-crop's croppedAreaPixels output.
+ */
+export async function generateCroppedImage(imageSrc, croppedAreaPixels, magnetType) {
+  if (!croppedAreaPixels) {
+    throw new Error('Missing croppedAreaPixels from cropper');
+  }
+
+  const image = await createImage(imageSrc);
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const outputWidth = Math.round(croppedAreaPixels.width);
+  const outputHeight = Math.round(croppedAreaPixels.height);
+
+  canvas.width = outputWidth;
+  canvas.height = outputHeight;
+
+  if (magnetType === 'round') {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(outputWidth / 2, outputHeight / 2, Math.min(outputWidth, outputHeight) / 2, 0, Math.PI * 2);
+    ctx.clip();
+  }
+
+  ctx.drawImage(
+    image,
+    Math.round(croppedAreaPixels.x),
+    Math.round(croppedAreaPixels.y),
+    outputWidth,
+    outputHeight,
+    0,
+    0,
+    outputWidth,
+    outputHeight
+  );
+
+  if (magnetType === 'round') {
+    ctx.restore();
+  }
+
+  return canvas.toDataURL('image/png');
+}
+
+export function getImageDimensions(imageSrc) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
     image.onload = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-
-      // Get natural dimensions
-      const naturalWidth = image.naturalWidth;
-      const naturalHeight = image.naturalHeight;
-
-      if (magnetType === 'round') {
-        // Create circular crop
-        const size = Math.min(naturalWidth, naturalHeight);
-        canvas.width = size;
-        canvas.height = size;
-
-        // Calculate crop position in natural image dimensions
-        const cropX = (crop.x / 100) * naturalWidth;
-        const cropY = (crop.y / 100) * naturalHeight;
-
-        // Create circular mask
-        ctx.beginPath();
-        ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
-        ctx.clip();
-
-        // Draw cropped portion
-        ctx.drawImage(
-          image,
-          cropX,
-          cropY,
-          size,
-          size,
-          0,
-          0,
-          size,
-          size
-        );
-      } else {
-        // Rectangle crop (standard aspect ratio)
-        const width = naturalWidth;
-        const height = naturalHeight;
-        canvas.width = width;
-        canvas.height = height;
-
-        const cropX = (crop.x / 100) * naturalWidth;
-        const cropY = (crop.y / 100) * naturalHeight;
-
-        ctx.drawImage(
-          image,
-          cropX,
-          cropY,
-          width,
-          height,
-          0,
-          0,
-          width,
-          height
-        );
-      }
-
-      resolve(canvas.toDataURL('image/png'));
+      resolve({
+        width: image.naturalWidth,
+        height: image.naturalHeight,
+      });
     };
+    image.onerror = reject;
+    image.src = imageSrc;
   });
 }
 

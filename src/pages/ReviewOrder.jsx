@@ -1,18 +1,114 @@
-import React from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useOrder } from '../context/OrderContext';
 import { getPreviewDimensions } from '../utils/cropUtils';
 import '../styles/ReviewOrder.css';
 
+const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
+
 export default function ReviewOrder({ onNext, onBack }) {
   const { order, submitOrder } = useOrder();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaReady, setCaptchaReady] = useState(!turnstileSiteKey);
+  const captchaRef = useRef(null);
+  const widgetIdRef = useRef(null);
 
   const dimensions = getPreviewDimensions(order.magnetType);
 
-  const handleSubmit = () => {
-    const submittedOrder = submitOrder();
-    console.log('Order submitted:', submittedOrder);
-    onNext();
+  useEffect(() => {
+    if (!turnstileSiteKey) {
+      console.warn('VITE_TURNSTILE_SITE_KEY is not configured; order CAPTCHA is disabled.');
+      return undefined;
+    }
+
+    let cancelled = false;
+    let attempts = 0;
+
+    const renderTurnstile = () => {
+      if (cancelled || widgetIdRef.current || !captchaRef.current) {
+        return;
+      }
+
+      if (!window.turnstile) {
+        attempts += 1;
+        if (attempts <= 50) {
+          window.setTimeout(renderTurnstile, 100);
+        }
+        return;
+      }
+
+      widgetIdRef.current = window.turnstile.render(captchaRef.current, {
+        sitekey: turnstileSiteKey,
+        callback: (token) => {
+          setCaptchaToken(token);
+          setCaptchaReady(true);
+        },
+        'expired-callback': () => {
+          setCaptchaToken('');
+          setCaptchaReady(false);
+        },
+        'error-callback': () => {
+          setCaptchaToken('');
+          setCaptchaReady(false);
+          setSubmitError('We could not verify this order. Please refresh and try again.');
+        },
+      });
+    };
+
+    renderTurnstile();
+
+    return () => {
+      cancelled = true;
+      if (window.turnstile && widgetIdRef.current) {
+        window.turnstile.remove(widgetIdRef.current);
+        widgetIdRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleSubmit = async () => {
+    if (turnstileSiteKey && !captchaToken) {
+      setSubmitError('Please complete the order verification before submitting.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitError('');
+
+    try {
+      const submittedOrder = await submitOrder(captchaToken || null);
+      console.log('Order submitted:', submittedOrder);
+      onNext();
+    } catch (error) {
+      setSubmitError(error.message || 'Unable to send your order. Please try again.');
+      if (window.turnstile && widgetIdRef.current) {
+        window.turnstile.reset(widgetIdRef.current);
+        setCaptchaToken('');
+        setCaptchaReady(false);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  if (!order.croppedImage) {
+    return (
+      <div className="review-order-screen">
+        <div className="review-content">
+          <h1>Preview Needed</h1>
+          <p className="subtitle">
+            Please go back and adjust your photo again before submitting your order.
+          </p>
+          <div className="action-buttons">
+            <button className="back-button" onClick={onBack}>
+              Back
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="review-order-screen">
@@ -81,12 +177,28 @@ export default function ReviewOrder({ onNext, onBack }) {
           )}
         </div>
 
+        {submitError && (
+          <div className="submit-error" role="alert">
+            {submitError}
+          </div>
+        )}
+
+        {turnstileSiteKey && (
+          <div className="order-verification">
+            <div ref={captchaRef} className="turnstile-widget" />
+          </div>
+        )}
+
         <div className="action-buttons">
-          <button className="back-button" onClick={onBack}>
+          <button className="back-button" onClick={onBack} disabled={isSubmitting}>
             Back
           </button>
-          <button className="submit-button" onClick={handleSubmit}>
-            Submit Order
+          <button
+            className="submit-button"
+            onClick={handleSubmit}
+            disabled={isSubmitting || !captchaReady}
+          >
+            {isSubmitting ? 'Sending Order...' : submitError ? 'Retry Sending Order' : 'Submit Order'}
           </button>
         </div>
       </div>
