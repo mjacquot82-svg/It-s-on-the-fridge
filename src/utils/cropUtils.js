@@ -7,6 +7,95 @@ function createImage(imageSrc) {
   });
 }
 
+const OPTIMIZED_IMAGE_TYPE = 'image/jpeg';
+const OPTIMIZED_IMAGE_QUALITY = 0.86;
+const OPTIMIZED_MAX_LONG_EDGE = 1800;
+const OPTIMIZED_TARGET_BYTES = 1.2 * 1024 * 1024;
+const OPTIMIZED_MAX_BYTES = 1.8 * 1024 * 1024;
+const MIN_PRINT_LONG_EDGE = 900;
+
+function getBase64PayloadSize(dataUrl) {
+  const base64Value = dataUrl.split(',')[1] || '';
+  const padding = base64Value.endsWith('==') ? 2 : base64Value.endsWith('=') ? 1 : 0;
+  return Math.floor((base64Value.length * 3) / 4) - padding;
+}
+
+function canvasToDataUrl(canvas, type, quality) {
+  return canvas.toDataURL(type, quality);
+}
+
+function drawImageToCanvas(image, maxLongEdge) {
+  const sourceWidth = image.naturalWidth || image.width;
+  const sourceHeight = image.naturalHeight || image.height;
+  const scale = Math.min(1, maxLongEdge / Math.max(sourceWidth, sourceHeight));
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+
+  canvas.width = width;
+  canvas.height = height;
+  ctx.drawImage(image, 0, 0, width, height);
+
+  return { canvas, width, height };
+}
+
+/**
+ * Compresses customer uploads before they enter order state so the final
+ * serverless request remains small enough for production order submission.
+ */
+export async function optimizeImageFile(file) {
+  if (!file?.type?.startsWith('image/')) {
+    throw new Error('Please choose a photo file.');
+  }
+
+  const originalDataUrl = await readFileAsDataUrl(file);
+  const originalBytes = file.size || getBase64PayloadSize(originalDataUrl);
+  const image = await createImage(originalDataUrl);
+  const originalWidth = image.naturalWidth || image.width;
+  const originalHeight = image.naturalHeight || image.height;
+  let maxLongEdge = OPTIMIZED_MAX_LONG_EDGE;
+  let quality = OPTIMIZED_IMAGE_QUALITY;
+  let optimizedDataUrl = '';
+  let optimizedWidth = 0;
+  let optimizedHeight = 0;
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const { canvas, width, height } = drawImageToCanvas(image, maxLongEdge);
+    optimizedDataUrl = canvasToDataUrl(canvas, OPTIMIZED_IMAGE_TYPE, quality);
+    optimizedWidth = width;
+    optimizedHeight = height;
+
+    const optimizedBytes = getBase64PayloadSize(optimizedDataUrl);
+    if (optimizedBytes <= OPTIMIZED_TARGET_BYTES || maxLongEdge <= MIN_PRINT_LONG_EDGE) {
+      break;
+    }
+
+    if (quality > 0.78) {
+      quality -= 0.04;
+    } else {
+      maxLongEdge = Math.max(MIN_PRINT_LONG_EDGE, Math.round(maxLongEdge * 0.86));
+    }
+  }
+
+  const optimizedBytes = getBase64PayloadSize(optimizedDataUrl);
+
+  if (optimizedBytes > OPTIMIZED_MAX_BYTES) {
+    throw new Error('This photo is still too large to submit. Please choose a smaller photo or take a screenshot of the photo and upload that instead.');
+  }
+
+  return {
+    dataUrl: optimizedDataUrl,
+    originalBytes,
+    optimizedBytes,
+    originalWidth,
+    originalHeight,
+    optimizedWidth,
+    optimizedHeight,
+    mimeType: OPTIMIZED_IMAGE_TYPE,
+  };
+}
+
 /**
  * Generates the final image from react-easy-crop's croppedAreaPixels output.
  */

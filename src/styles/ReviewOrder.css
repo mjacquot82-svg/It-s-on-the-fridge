@@ -48,9 +48,13 @@
 
 .order-preview {
   margin: 0 auto 12px;
+  width: min(var(--preview-width), 100%);
+  aspect-ratio: var(--preview-aspect-ratio);
   background: var(--color-surface);
   border: 3px solid var(--color-primary);
   box-shadow: 0 6px 16px rgba(11, 48, 72, 0.14);
+  overflow: hidden;
+  flex: 0 0 auto;
 }
 
 .magnet-info {
@@ -236,7 +240,7 @@
   }
 
   .order-preview {
-    max-width: 180px;
+    width: min(var(--preview-width), 180px, 100%);
     margin: 0 auto 12px;
   }
 

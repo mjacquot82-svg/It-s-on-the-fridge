@@ -118,11 +118,11 @@ export default function ReviewOrder({ onNext, onBack }) {
 
         <div className="preview-section">
           <h2>Your Magnet</h2>
-          <div 
-            className="order-preview" 
-            style={{ 
-              width: `${dimensions.width}px`,
-              height: `${dimensions.height}px`,
+          <div
+            className="order-preview"
+            style={{
+              '--preview-width': `${dimensions.width}px`,
+              '--preview-aspect-ratio': dimensions.aspectRatio,
               borderRadius: dimensions.borderRadius,
             }}
           >

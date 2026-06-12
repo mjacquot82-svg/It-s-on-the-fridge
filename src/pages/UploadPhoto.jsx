@@ -1,18 +1,36 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useOrder } from '../context/OrderContext';
-import { readFileAsDataUrl } from '../utils/cropUtils';
+import { optimizeImageFile } from '../utils/cropUtils';
 import '../styles/UploadPhoto.css';
 
 export default function UploadPhoto({ onNext }) {
   const { setPhoto } = useOrder();
   const fileInputRef = useRef(null);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [uploadError, setUploadError] = useState('');
 
   const handlePhotoSelect = async (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      const dataUrl = await readFileAsDataUrl(file);
-      setPhoto(dataUrl);
-      onNext();
+      setUploadError('');
+      setIsOptimizing(true);
+
+      try {
+        const optimizedImage = await optimizeImageFile(file);
+        console.info('Image optimized for order submission', {
+          originalBytes: optimizedImage.originalBytes,
+          optimizedBytes: optimizedImage.optimizedBytes,
+          originalSize: `${optimizedImage.originalWidth}x${optimizedImage.originalHeight}`,
+          optimizedSize: `${optimizedImage.optimizedWidth}x${optimizedImage.optimizedHeight}`,
+        });
+        setPhoto(optimizedImage.dataUrl);
+        onNext();
+      } catch (error) {
+        setUploadError(error.message || 'We could not prepare this photo. Please try a smaller image.');
+      } finally {
+        setIsOptimizing(false);
+        e.target.value = '';
+      }
     }
   };
 
@@ -28,8 +46,9 @@ export default function UploadPhoto({ onNext }) {
           <button
             className="upload-button"
             onClick={() => fileInputRef.current?.click()}
+            disabled={isOptimizing}
           >
-            Choose Photo
+            {isOptimizing ? 'Preparing Photo...' : 'Choose Photo'}
           </button>
           <input
             ref={fileInputRef}
@@ -40,11 +59,17 @@ export default function UploadPhoto({ onNext }) {
           />
         </div>
 
+        {uploadError && (
+          <div className="upload-error" role="alert">
+            {uploadError}
+          </div>
+        )}
+
         <div className="upload-tips">
           <h3>Tips for best results:</h3>
           <ul>
             <li>Use a clear, well-lit photo</li>
-            <li>Avoid very small photos</li>
+            <li>Large phone photos will be prepared automatically</li>
             <li>Portrait or landscape photos both work</li>
           </ul>
         </div>

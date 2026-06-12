@@ -163,11 +163,14 @@ export default function AdjustPhoto({ onNext }) {
         </div>
 
         <div className="preview-info">
-          <div className="preview-box" style={{ 
-            width: `${dimensions.width}px`,
-            height: `${dimensions.height}px`,
-            borderRadius: dimensions.borderRadius,
-          }}>
+          <div
+            className="preview-box"
+            style={{
+              '--preview-width': `${dimensions.width}px`,
+              '--preview-aspect-ratio': dimensions.aspectRatio,
+              borderRadius: dimensions.borderRadius,
+            }}
+          >
             {order.photo && croppedPixels && previewImage ? (
               <img 
                 src={previewImage} 

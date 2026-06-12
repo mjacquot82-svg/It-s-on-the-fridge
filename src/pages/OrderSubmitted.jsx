@@ -41,8 +41,8 @@ export default function OrderSubmitted({ onRestart }) {
               <div
                 className="submitted-preview"
                 style={{
-                  width: `${Math.min(dimensions.width, 220)}px`,
-                  height: `${Math.min(dimensions.height, 280)}px`,
+                  '--preview-width': `${Math.min(dimensions.width, 220)}px`,
+                  '--preview-aspect-ratio': dimensions.aspectRatio,
                   borderRadius: dimensions.borderRadius,
                 }}
               >

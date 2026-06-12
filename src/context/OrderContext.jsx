@@ -82,6 +82,27 @@ function saveStoredValue(key, value) {
   }
 }
 
+function getDataUrlBytes(dataUrl) {
+  if (!dataUrl || typeof dataUrl !== 'string') {
+    return 0;
+  }
+
+  const base64Value = dataUrl.split(',')[1] || '';
+  const padding = base64Value.endsWith('==') ? 2 : base64Value.endsWith('=') ? 1 : 0;
+  return Math.floor((base64Value.length * 3) / 4) - padding;
+}
+
+function validateSubmissionPayloadSize(order) {
+  const originalBytes = getDataUrlBytes(order.photo);
+  const croppedBytes = getDataUrlBytes(order.croppedImage);
+  const estimatedJsonBytes = Math.ceil((originalBytes + croppedBytes) * 1.4);
+  const maxEstimatedJsonBytes = 4.2 * 1024 * 1024;
+
+  if (estimatedJsonBytes > maxEstimatedJsonBytes) {
+    throw new Error('Your photo is too large to submit from this device. Please go back and choose a smaller photo, or take a screenshot of the photo and upload that instead.');
+  }
+}
+
 async function sendOrderEmail(order, turnstileToken) {
   const response = await fetch('/api/send-order-email', {
     method: 'POST',
@@ -180,6 +201,8 @@ export function OrderProvider({ children }) {
       id: Date.now(),
       submittedAt: new Date().toISOString(),
     };
+
+    validateSubmissionPayloadSize(newOrder);
 
     const emailDelivery = await sendOrderEmail(newOrder, turnstileToken);
     

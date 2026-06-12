@@ -80,9 +80,12 @@
 
 .submitted-preview {
   overflow: hidden;
+  width: min(var(--preview-width), 100%);
+  aspect-ratio: var(--preview-aspect-ratio);
   background: var(--color-surface);
   border: 2px solid var(--color-primary);
   box-shadow: 0 4px 12px rgba(11, 48, 72, 0.12);
+  flex: 0 0 auto;
 }
 
 .submitted-preview img {
