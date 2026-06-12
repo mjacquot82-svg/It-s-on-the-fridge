@@ -176,9 +176,9 @@ function buildHtml(order) {
 
   return `
     <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.45;">
-      <div style="border-bottom: 4px solid #667eea; padding-bottom: 14px; margin-bottom: 20px;">
+      <div style="border-bottom: 4px solid #63c7bd; padding-bottom: 14px; margin-bottom: 20px;">
         <h1 style="margin: 0; font-size: 26px;">It's On The Fridge</h1>
-        <p style="margin: 6px 0 0; color: #666;">New custom magnet order</p>
+        <p style="margin: 6px 0 0; color: #65737b;">New custom magnet order</p>
       </div>
 
       <h2 style="font-size: 18px;">Customer</h2>
@@ -197,7 +197,7 @@ function buildHtml(order) {
       <p><strong>Original Customer Photo:</strong> the photo the customer uploaded.</p>
       <p><strong>Print-Ready Magnet Image:</strong> the cropped image Jennifer should use for printing.</p>
 
-      <div style="background: #fffdf7; border-left: 4px solid #d9bf72; padding: 12px; margin-top: 18px;">
+      <div style="background: #fff8df; border-left: 4px solid #ffe22e; padding: 12px; margin-top: 18px;">
         Jennifer will contact the customer to confirm pickup and payment.
       </div>
     </div>

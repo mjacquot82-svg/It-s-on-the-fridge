@@ -74,10 +74,10 @@ function generateEmailHTML(order) {
   <style>
     body { font-family: Arial, sans-serif; color: #333; }
     .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { border-bottom: 4px solid #667eea; padding: 0 0 16px; margin-bottom: 20px; }
+    .header { border-bottom: 4px solid #63c7bd; padding: 0 0 16px; margin-bottom: 20px; }
     .section { margin: 20px 0; padding: 15px; background: #f9f9f9; border-radius: 8px; }
-    .label { font-weight: bold; color: #667eea; }
-    .image-preview { max-width: 300px; border: 2px solid #667eea; border-radius: 8px; margin: 10px 0; }
+    .label { font-weight: bold; color: #0b3048; }
+    .image-preview { max-width: 300px; border: 2px solid #0b3048; border-radius: 8px; margin: 10px 0; }
     .next-steps { background: #fffdf7; border-left: 4px solid #d9bf72; }
   </style>
 </head>

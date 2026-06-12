@@ -1,5 +1,24 @@
 :root {
   color-scheme: light;
+  --color-primary: #0b3048;
+  --color-secondary: #63c7bd;
+  --color-secondary-dark: #24998f;
+  --color-accent-pink: #e83d8c;
+  --color-accent-yellow: #ffe22e;
+  --color-accent-purple: #7564b8;
+  --color-success: #2fa99d;
+  --color-background: #fbf9f3;
+  --color-surface: #ffffff;
+  --color-soft: #eef8f6;
+  --color-soft-warm: #fff8df;
+  --color-border: #d9e6e2;
+  --color-text: #26343d;
+  --color-muted: #65737b;
+  --color-danger: #c93636;
+  --shadow-card: 0 12px 34px rgba(11, 48, 72, 0.12);
+  --shadow-button: 0 4px 14px rgba(11, 48, 72, 0.22);
+  --button-bg: var(--color-primary);
+  --button-bg-hover: #123d5b;
 }
 
 * {

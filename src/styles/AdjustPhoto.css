@@ -11,10 +11,10 @@
   text-align: center;
   width: 100%;
   max-width: 700px;
-  background: white;
+  background: var(--color-surface);
   padding: 30px 20px;
   border-radius: 20px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-card);
   animation: slideUp 0.5s ease-out;
   max-height: 95vh;
   overflow-y: auto;
@@ -22,13 +22,13 @@
 
 .adjust-content h1 {
   font-size: 36px;
-  color: #333;
+  color: var(--color-text);
   margin-bottom: 10px;
 }
 
 .adjust-content .subtitle {
   font-size: 16px;
-  color: #666;
+  color: var(--color-muted);
   margin-bottom: 25px;
 }
 
@@ -36,23 +36,23 @@
   position: relative;
   width: 100%;
   height: 350px;
-  background: #f0f0f0;
+  background: #f4f6f5;
   border-radius: 12px;
   overflow: hidden;
   margin-bottom: 20px;
-  border: 2px solid #e0e0e0;
+  border: 2px solid var(--color-border);
 }
 
 /* Cropper styles handled by react-easy-crop library */
 
 .warning-message {
-  background: #fff3cd;
-  border-left: 4px solid #ffc107;
+  background: var(--color-soft-warm);
+  border-left: 4px solid var(--color-accent-yellow);
   padding: 15px;
   border-radius: 8px;
   margin-bottom: 20px;
   font-size: 14px;
-  color: #856404;
+  color: #6c5520;
 }
 
 .warning-message p {
@@ -68,7 +68,7 @@
 
 .zoom-controls label {
   font-size: 14px;
-  color: #666;
+  color: var(--color-muted);
   font-weight: 600;
 }
 
@@ -76,7 +76,7 @@
   width: 100%;
   height: 6px;
   border-radius: 3px;
-  background: #e0e0e0;
+  background: var(--color-border);
   outline: none;
   -webkit-appearance: none;
   appearance: none;
@@ -88,19 +88,19 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--button-bg);
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 2px 8px rgba(11, 48, 72, 0.22);
 }
 
 .zoom-slider::-moz-range-thumb {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--button-bg);
   cursor: pointer;
   border: none;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 2px 8px rgba(11, 48, 72, 0.22);
 }
 
 .preview-info {
@@ -110,17 +110,17 @@
   gap: 15px;
   margin-bottom: 25px;
   padding: 20px;
-  background: #f8f9ff;
+  background: var(--color-soft);
   border-radius: 12px;
-  border: 2px solid #e8ebff;
+  border: 2px solid var(--color-soft);
 }
 
 .preview-box {
   position: relative;
   overflow: hidden;
-  background: white;
-  border: 2px solid #667eea;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+  background: var(--color-surface);
+  border: 2px solid var(--color-primary);
+  box-shadow: 0 4px 12px rgba(11, 48, 72, 0.12);
 }
 
 .preview-loading {
@@ -130,14 +130,14 @@
   width: 100%;
   height: 100%;
   padding: 16px;
-  color: #666;
+  color: var(--color-muted);
   font-size: 13px;
   text-align: center;
 }
 
 .preview-label {
   font-size: 13px;
-  color: #666;
+  color: var(--color-muted);
   font-weight: 500;
 }
 
@@ -148,13 +148,13 @@
 }
 
 .next-button {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: var(--button-bg);
+  color: var(--color-surface);
   padding: 14px 32px;
   font-size: 16px;
   font-weight: 600;
   border-radius: 10px;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 15px rgba(11, 48, 72, 0.22);
   transition: all 0.3s ease;
   flex: 1;
   max-width: 200px;
@@ -162,7 +162,8 @@
 
 .next-button:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+  background: var(--button-bg-hover);
+  box-shadow: 0 6px 20px rgba(11, 48, 72, 0.28);
 }
 
 .next-button:disabled {

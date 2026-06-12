@@ -10,7 +10,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #fff;
+  background: var(--color-background);
   overflow-x: hidden;
 }
 
@@ -26,14 +26,16 @@ html, body, #root {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background:
+    radial-gradient(circle at top left, rgba(99, 199, 189, 0.18), transparent 32rem),
+    linear-gradient(180deg, var(--color-background) 0%, #eef8f6 100%);
 }
 
 /* Progress Bar */
 .progress-bar {
   width: 100%;
   height: 4px;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(11, 48, 72, 0.12);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -41,7 +43,7 @@ html, body, #root {
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #48dbfb, #00d2d3);
+  background: linear-gradient(90deg, var(--color-secondary), var(--color-accent-pink));
   transition: width 0.3s ease;
 }
 

@@ -11,10 +11,10 @@
   text-align: center;
   width: 100%;
   max-width: 500px;
-  background: white;
+  background: var(--color-surface);
   padding: 30px 20px;
   border-radius: 20px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-card);
   animation: slideUp 0.5s ease-out;
   max-height: 95vh;
   overflow-y: auto;
@@ -22,13 +22,13 @@
 
 .review-content h1 {
   font-size: 36px;
-  color: #333;
+  color: var(--color-text);
   margin-bottom: 8px;
 }
 
 .review-content .subtitle {
   font-size: 14px;
-  color: #666;
+  color: var(--color-muted);
   margin-bottom: 25px;
 }
 
@@ -36,26 +36,26 @@
   text-align: center;
   margin-bottom: 30px;
   padding-bottom: 25px;
-  border-bottom: 2px solid #e8ebff;
+  border-bottom: 2px solid var(--color-soft);
 }
 
 .preview-section h2 {
   font-size: 18px;
-  color: #666;
+  color: var(--color-muted);
   margin-bottom: 15px;
   font-weight: 600;
 }
 
 .order-preview {
   margin: 0 auto 12px;
-  background: white;
-  border: 3px solid #667eea;
-  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.3);
+  background: var(--color-surface);
+  border: 3px solid var(--color-primary);
+  box-shadow: 0 6px 16px rgba(11, 48, 72, 0.14);
 }
 
 .magnet-info {
   text-align: left;
-  background: #f8f9ff;
+  background: var(--color-soft);
   padding: 12px;
   border-radius: 8px;
   margin-top: 12px;
@@ -63,24 +63,24 @@
 
 .magnet-type {
   font-size: 14px;
-  color: #666;
+  color: var(--color-muted);
   font-weight: 500;
   margin-bottom: 8px;
 }
 
 .magnet-type strong {
-  color: #333;
+  color: var(--color-text);
 }
 
 .preview-note {
   font-size: 13px;
-  color: #667eea;
+  color: var(--color-primary);
   font-weight: 500;
   margin: 0;
 }
 
 .payment-confirmation-note {
-  background: #fffdf7;
+  background: var(--color-soft-warm);
   border: 1px solid #eadfbf;
   border-radius: 10px;
   color: #51452c;
@@ -93,8 +93,8 @@
 
 .order-summary {
   text-align: left;
-  background: #f8f9ff;
-  border-left: 4px solid #667eea;
+  background: var(--color-soft);
+  border-left: 4px solid var(--color-primary);
   padding: 20px;
   border-radius: 12px;
   margin-bottom: 25px;
@@ -102,7 +102,7 @@
 
 .order-summary h2 {
   font-size: 16px;
-  color: #333;
+  color: var(--color-text);
   margin-bottom: 15px;
   text-align: center;
   font-weight: 600;
@@ -113,7 +113,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 12px 0;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--color-border);
   font-size: 14px;
 }
 
@@ -122,12 +122,12 @@
 }
 
 .summary-item .label {
-  color: #666;
+  color: var(--color-muted);
   font-weight: 500;
 }
 
 .summary-item .value {
-  color: #333;
+  color: var(--color-text);
   font-weight: 600;
   text-align: right;
   flex: 1;
@@ -136,7 +136,7 @@
 
 .order-id {
   font-family: 'Courier New', monospace;
-  background: #e8ebff;
+  background: var(--color-soft);
   padding: 4px 8px;
   border-radius: 4px;
 }
@@ -149,7 +149,7 @@
 
 .submit-error {
   background: #fdecea;
-  border-left: 4px solid #d93025;
+  border-left: 4px solid var(--color-danger);
   color: #8a1f16;
   padding: 12px;
   border-radius: 8px;
@@ -180,20 +180,20 @@
 
 .back-button {
   flex: 1;
-  background: #f0f0f0;
-  color: #333;
+  background: #f4f6f5;
+  color: var(--color-text);
   padding: 14px 24px;
   font-size: 16px;
   font-weight: 700;
   border-radius: 10px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
-  border: 2px solid #e0e0e0;
+  border: 2px solid var(--color-border);
 }
 
 .back-button:hover:not(:disabled) {
-  background: #e0e0e0;
-  border-color: #999;
+  background: var(--color-border);
+  border-color: #7b878e;
 }
 
 .back-button:disabled,
@@ -205,19 +205,20 @@
 
 .submit-button {
   flex: 1;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: var(--button-bg);
+  color: var(--color-surface);
   padding: 14px 24px;
   font-size: 16px;
   font-weight: 700;
   border-radius: 10px;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 15px rgba(11, 48, 72, 0.22);
   transition: all 0.3s ease;
 }
 
 .submit-button:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+  background: var(--button-bg-hover);
+  box-shadow: 0 6px 20px rgba(11, 48, 72, 0.28);
 }
 
 @media (max-width: 640px) {

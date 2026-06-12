@@ -1,3 +1,4 @@
+import logo from '../assets/logo.png';
 import '../styles/WelcomeScreen.css';
 
 export default function WelcomeScreen({ onNext }) {
@@ -5,9 +6,7 @@ export default function WelcomeScreen({ onNext }) {
     <div className="welcome-screen">
       <div className="welcome-content">
         <div className="welcome-logo">
-          <div className="brand-mark" aria-hidden="true">
-            <span>IOF</span>
-          </div>
+          <img src={logo} alt="It's On The Fridge Magnets" className="brand-logo" />
         </div>
         
         <h1>It's On The Fridge</h1>
