@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import { useRef } from 'react';
 import { useOrder } from '../context/OrderContext';
 import { readFileAsDataUrl } from '../utils/cropUtils';
 import '../styles/UploadPhoto.css';
@@ -20,10 +20,10 @@ export default function UploadPhoto({ onNext }) {
     <div className="upload-screen">
       <div className="upload-content">
         <h1>Upload Your Photo</h1>
-        <p className="subtitle">Choose a photo from your phone or device</p>
+        <p className="subtitle">Choose the photo Jennifer will use for your custom magnet.</p>
 
         <div className="upload-area">
-          <div className="upload-icon">📷</div>
+          <div className="upload-icon" aria-hidden="true"></div>
           <p className="upload-text">Tap to select a photo</p>
           <button
             className="upload-button"
@@ -45,7 +45,7 @@ export default function UploadPhoto({ onNext }) {
           <ul>
             <li>Use a clear, well-lit photo</li>
             <li>Avoid very small photos</li>
-            <li>Portrait or landscape both work</li>
+            <li>Portrait or landscape photos both work</li>
           </ul>
         </div>
       </div>

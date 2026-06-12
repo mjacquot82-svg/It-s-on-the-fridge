@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useOrder } from '../context/OrderContext';
 import '../styles/OrderDetails.css';
 
@@ -58,7 +58,7 @@ export default function OrderDetails({ onNext }) {
     <div className="order-details-screen">
       <div className="details-content">
         <h1>Your Information</h1>
-        <p className="subtitle">Help us know how to reach you</p>
+        <p className="subtitle">Jennifer will use this to confirm your order.</p>
 
         <form className="customer-form">
           <div className="form-row">
@@ -166,6 +166,10 @@ export default function OrderDetails({ onNext }) {
             />
           </div>
         </form>
+
+        <p className="payment-note details-payment-note">
+          No online payment is required. Jennifer will contact you after submission to confirm pickup and payment.
+        </p>
 
         <button className="next-button" onClick={handleNext}>
           Review Order

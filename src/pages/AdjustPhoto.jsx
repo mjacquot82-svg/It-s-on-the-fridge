@@ -128,7 +128,7 @@ export default function AdjustPhoto({ onNext }) {
     <div className="adjust-photo-screen">
       <div className="adjust-content">
         <h1>Adjust Your Photo</h1>
-        <p className="subtitle">Position your image perfectly</p>
+        <p className="subtitle">Crop your photo</p>
 
         <div className="cropper-container" onWheel={handleZoomByWheel}>
           <Cropper
@@ -145,7 +145,7 @@ export default function AdjustPhoto({ onNext }) {
         </div>
 
         <div className="warning-message">
-          <p>⚠️ Everything visible inside the preview will be printed.</p>
+          <p>Everything visible inside the preview will be printed.</p>
         </div>
 
         <div className="zoom-controls">
@@ -182,7 +182,7 @@ export default function AdjustPhoto({ onNext }) {
               <div className="preview-loading">Preparing preview...</div>
             )}
           </div>
-          <p className="preview-label">This is how it will look</p>
+          <p className="preview-label">Print Preview</p>
         </div>
 
         <div className="action-buttons">

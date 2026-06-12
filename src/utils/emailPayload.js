@@ -34,11 +34,11 @@ export function createEmailPayload(order) {
     images: {
       original: {
         data: order.photo,
-        description: 'Original uploaded image by customer',
+        description: 'Original Customer Photo',
       },
       cropped: {
         data: order.croppedImage,
-        description: 'Final cropped image ready for printing',
+        description: 'Print-Ready Magnet Image',
       },
     },
     
@@ -74,16 +74,18 @@ function generateEmailHTML(order) {
   <style>
     body { font-family: Arial, sans-serif; color: #333; }
     .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; }
+    .header { border-bottom: 4px solid #667eea; padding: 0 0 16px; margin-bottom: 20px; }
     .section { margin: 20px 0; padding: 15px; background: #f9f9f9; border-radius: 8px; }
     .label { font-weight: bold; color: #667eea; }
     .image-preview { max-width: 300px; border: 2px solid #667eea; border-radius: 8px; margin: 10px 0; }
+    .next-steps { background: #fffdf7; border-left: 4px solid #d9bf72; }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>🧲 New Magnet Order Received</h1>
+      <h1>It's On The Fridge</h1>
+      <p>New custom magnet order</p>
     </div>
     
     <div class="section">
@@ -107,18 +109,18 @@ function generateEmailHTML(order) {
     </div>
     
     <div class="section">
-      <h2>Final Magnet Preview</h2>
-      <p>This is exactly what the customer will receive:</p>
+      <h2>Attached Images</h2>
+      <p><strong>Original Customer Photo:</strong> the photo the customer uploaded.</p>
+      <p><strong>Print-Ready Magnet Image:</strong> the cropped image Jennifer should use for printing.</p>
       <img src="cid:cropped-image" alt="Final Magnet Preview" class="image-preview" />
     </div>
     
-    <div class="section" style="background: #fff3cd; border-left: 4px solid #ffc107;">
-      <h3 style="color: #856404;">Next Steps</h3>
+    <div class="section next-steps">
+      <h3>Next Steps</h3>
       <ul>
-        <li>Contact customer to confirm details</li>
-        <li>Discuss payment options</li>
-        <li>Schedule pickup time</li>
-        <li>Print the magnet using the final preview image</li>
+        <li>Jennifer will contact the customer to confirm details</li>
+        <li>Confirm pickup and payment</li>
+        <li>Print the magnet using the print-ready image</li>
       </ul>
     </div>
   </div>
@@ -136,7 +138,8 @@ function generateEmailText(order) {
   const orderDate = new Date(order.submittedAt).toLocaleString();
   
   return `
-NEW MAGNET ORDER RECEIVED
+IT'S ON THE FRIDGE
+New custom magnet order
 
 Order Information:
 - Order ID: ${order.id}
@@ -152,14 +155,14 @@ Product Details:
 - Magnet Type: ${magnetType}
 - Quantity: ${order.customerInfo.quantity}
 
-Final Magnet Preview:
-The cropped image is attached and ready for printing.
+Attached Images:
+- Original Customer Photo: the photo the customer uploaded.
+- Print-Ready Magnet Image: the cropped image Jennifer should use for printing.
 
 Next Steps:
-1. Contact customer to confirm details
-2. Discuss payment options
-3. Schedule pickup time
-4. Print the magnet using the final preview image
+1. Jennifer will contact the customer to confirm details
+2. Confirm pickup and payment
+3. Print the magnet using the print-ready image
   `;
 }
 

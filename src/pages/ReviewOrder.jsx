@@ -114,7 +114,7 @@ export default function ReviewOrder({ onNext, onBack }) {
     <div className="review-order-screen">
       <div className="review-content">
         <h1>Review Your Order</h1>
-        <p className="subtitle">Please review your magnet design and information</p>
+        <p className="subtitle">Please review your magnet preview and contact information.</p>
 
         <div className="preview-section">
           <h2>Your Magnet</h2>
@@ -141,7 +141,7 @@ export default function ReviewOrder({ onNext, onBack }) {
               <strong>Type:</strong> {order.magnetType === 'round' ? 'Round Magnet' : 'Rectangle Magnet'}
             </p>
             <p className="preview-note">
-              ℹ️ This preview represents what will be printed.
+              This preview represents what Jennifer will use for printing.
             </p>
           </div>
         </div>
@@ -176,6 +176,10 @@ export default function ReviewOrder({ onNext, onBack }) {
             </div>
           )}
         </div>
+
+        <p className="payment-confirmation-note">
+          No online payment is required. Jennifer will contact you after submission to confirm your order, pickup, and payment.
+        </p>
 
         {submitError && (
           <div className="submit-error" role="alert">

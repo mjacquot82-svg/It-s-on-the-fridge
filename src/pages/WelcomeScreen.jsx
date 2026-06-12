@@ -1,5 +1,3 @@
-import React from 'react';
-import { useOrder } from '../context/OrderContext';
 import '../styles/WelcomeScreen.css';
 
 export default function WelcomeScreen({ onNext }) {
@@ -7,29 +5,28 @@ export default function WelcomeScreen({ onNext }) {
     <div className="welcome-screen">
       <div className="welcome-content">
         <div className="welcome-logo">
-          <div className="logo-placeholder">🧲</div>
+          <div className="brand-mark" aria-hidden="true">
+            <span>IOF</span>
+          </div>
         </div>
         
         <h1>It's On The Fridge</h1>
-        <p className="welcome-tagline">Create Custom Magnets</p>
+        <p className="welcome-tagline">Turn your favorite photo into a custom fridge magnet.</p>
+        <p className="local-note">Custom photo magnets made locally by Jennifer Jacquot.</p>
         
-        <div className="welcome-features">
-          <div className="feature">
-            <div className="feature-icon">📸</div>
-            <p>Upload your photo</p>
-          </div>
-          <div className="feature">
-            <div className="feature-icon">✨</div>
-            <p>Perfect your design</p>
-          </div>
-          <div className="feature">
-            <div className="feature-icon">🎁</div>
-            <p>Order magnets</p>
-          </div>
-        </div>
+        <ol className="process-list">
+          <li>Choose your magnet shape</li>
+          <li>Upload and crop your photo</li>
+          <li>Submit your order</li>
+          <li>Jennifer will contact you to confirm pickup and payment</li>
+        </ol>
+
+        <p className="payment-note">
+          No online payment is required. Jennifer will contact you after submission to confirm your order.
+        </p>
 
         <button className="cta-button" onClick={onNext}>
-          Get Started
+          Start Your Magnet
         </button>
       </div>
     </div>

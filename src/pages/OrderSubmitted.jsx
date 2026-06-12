@@ -30,7 +30,7 @@ export default function OrderSubmitted({ onRestart }) {
         
         <h1>Thank You for Your Order!</h1>
         <p className="confirmation-message">
-          We'll contact you soon regarding pickup and payment.
+          Jennifer will contact you to confirm pickup and payment.
         </p>
 
         <div className="order-summary">
@@ -106,9 +106,9 @@ export default function OrderSubmitted({ onRestart }) {
           <h3>What Happens Next?</h3>
           <ul>
             <li>Jennifer will review your order</li>
-            <li>You'll receive a call or text to confirm details</li>
-            <li>Discuss payment options and pickup time</li>
-            <li>Your beautiful magnet will be printed and ready for you</li>
+            <li>You'll receive a call, text, or email to confirm details</li>
+            <li>No online payment is required</li>
+            <li>Your magnet will be printed after confirmation</li>
           </ul>
         </div>
 

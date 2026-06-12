@@ -79,6 +79,18 @@
   margin: 0;
 }
 
+.payment-confirmation-note {
+  background: #fffdf7;
+  border: 1px solid #eadfbf;
+  border-radius: 10px;
+  color: #51452c;
+  font-size: 13px;
+  line-height: 1.45;
+  margin: -8px 0 18px;
+  padding: 12px;
+  text-align: left;
+}
+
 .order-summary {
   text-align: left;
   background: #f8f9ff;

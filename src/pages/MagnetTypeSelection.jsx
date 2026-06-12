@@ -1,4 +1,3 @@
-import React from 'react';
 import { useOrder } from '../context/OrderContext';
 import '../styles/MagnetTypeSelection.css';
 
@@ -14,7 +13,7 @@ export default function MagnetTypeSelection({ onNext }) {
     <div className="magnet-type-screen">
       <div className="type-content">
         <h1>Choose Your Magnet Shape</h1>
-        <p className="subtitle">What shape would you like?</p>
+        <p className="subtitle">Pick the shape that works best for your photo.</p>
 
         <div className="type-options">
           <button
@@ -25,7 +24,7 @@ export default function MagnetTypeSelection({ onNext }) {
               <div className="circle"></div>
             </div>
             <h2>Round Magnet</h2>
-            <p>Classic circular design</p>
+            <p>Great for faces, pets, and centered photos</p>
           </button>
 
           <button
@@ -36,7 +35,7 @@ export default function MagnetTypeSelection({ onNext }) {
               <div className="rectangle"></div>
             </div>
             <h2>Rectangle Magnet</h2>
-            <p>Standard postcard size</p>
+            <p>Great for full photos and wider layouts</p>
           </button>
         </div>
       </div>

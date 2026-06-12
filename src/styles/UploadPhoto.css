@@ -44,18 +44,42 @@
 }
 
 .upload-icon {
-  font-size: 60px;
-  margin-bottom: 15px;
-  animation: bounce 2s ease-in-out infinite;
+  width: 64px;
+  height: 50px;
+  margin: 0 auto 15px;
+  border: 3px solid #667eea;
+  border-radius: 8px;
+  position: relative;
+  background: white;
 }
 
-@keyframes bounce {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
+.upload-icon::before {
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: 18px;
+  width: 24px;
+  height: 12px;
+  border: 3px solid #667eea;
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  background: white;
+}
+
+.upload-icon::after {
+  content: "";
+  position: absolute;
+  top: 13px;
+  left: 20px;
+  width: 18px;
+  height: 18px;
+  border: 3px solid #667eea;
+  border-radius: 50%;
+  background: #f8f9ff;
+}
+
+.upload-icon {
+  margin-bottom: 15px;
 }
 
 .upload-text {

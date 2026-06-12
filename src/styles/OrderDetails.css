@@ -34,7 +34,7 @@
 
 .customer-form {
   text-align: left;
-  margin-bottom: 25px;
+  margin-bottom: 16px;
 }
 
 .form-row {
@@ -88,6 +88,10 @@
 .notes-input {
   resize: vertical;
   min-height: 80px;
+}
+
+.details-payment-note {
+  margin-bottom: 18px;
 }
 
 .quantity-selector {

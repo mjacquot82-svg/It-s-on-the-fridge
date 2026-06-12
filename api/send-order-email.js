@@ -175,21 +175,32 @@ function buildHtml(order) {
   const submittedAt = new Date(order.submittedAt).toLocaleString();
 
   return `
-    <h1>New Magnet Order</h1>
-    <h2>Customer</h2>
-    <p><strong>First Name:</strong> ${escapeHtml(customerInfo.firstName)}</p>
-    <p><strong>Last Name:</strong> ${escapeHtml(customerInfo.lastName)}</p>
-    <p><strong>Email:</strong> ${escapeHtml(customerInfo.email)}</p>
-    <p><strong>Phone:</strong> ${escapeHtml(customerInfo.phone)}</p>
-    <p><strong>Quantity:</strong> ${escapeHtml(customerInfo.quantity)}</p>
-    <p><strong>Notes:</strong> ${escapeHtml(customerInfo.notes || 'None')}</p>
+    <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.45;">
+      <div style="border-bottom: 4px solid #667eea; padding-bottom: 14px; margin-bottom: 20px;">
+        <h1 style="margin: 0; font-size: 26px;">It's On The Fridge</h1>
+        <p style="margin: 6px 0 0; color: #666;">New custom magnet order</p>
+      </div>
 
-    <h2>Product</h2>
-    <p><strong>Magnet Type:</strong> ${escapeHtml(magnetType)}</p>
-    <p><strong>Order ID:</strong> ${escapeHtml(order.id)}</p>
-    <p><strong>Submitted:</strong> ${escapeHtml(submittedAt)}</p>
+      <h2 style="font-size: 18px;">Customer</h2>
+      <p><strong>Name:</strong> ${escapeHtml(customerInfo.firstName)} ${escapeHtml(customerInfo.lastName)}</p>
+      <p><strong>Email:</strong> ${escapeHtml(customerInfo.email)}</p>
+      <p><strong>Phone:</strong> ${escapeHtml(customerInfo.phone)}</p>
+      <p><strong>Notes:</strong> ${escapeHtml(customerInfo.notes || 'None')}</p>
 
-    <p>The original uploaded image and final cropped print image are attached.</p>
+      <h2 style="font-size: 18px;">Order</h2>
+      <p><strong>Magnet Type:</strong> ${escapeHtml(magnetType)}</p>
+      <p><strong>Quantity:</strong> ${escapeHtml(customerInfo.quantity)}</p>
+      <p><strong>Order ID:</strong> ${escapeHtml(order.id)}</p>
+      <p><strong>Submitted:</strong> ${escapeHtml(submittedAt)}</p>
+
+      <h2 style="font-size: 18px;">Attached Images</h2>
+      <p><strong>Original Customer Photo:</strong> the photo the customer uploaded.</p>
+      <p><strong>Print-Ready Magnet Image:</strong> the cropped image Jennifer should use for printing.</p>
+
+      <div style="background: #fffdf7; border-left: 4px solid #d9bf72; padding: 12px; margin-top: 18px;">
+        Jennifer will contact the customer to confirm pickup and payment.
+      </div>
+    </div>
   `;
 }
 
@@ -199,22 +210,26 @@ function buildText(order) {
   const submittedAt = new Date(order.submittedAt).toLocaleString();
 
   return [
-    'New Magnet Order',
+    "It's On The Fridge",
+    'New custom magnet order',
     '',
     'Customer:',
-    `First Name: ${customerInfo.firstName}`,
-    `Last Name: ${customerInfo.lastName}`,
+    `Name: ${customerInfo.firstName} ${customerInfo.lastName}`,
     `Email: ${customerInfo.email}`,
     `Phone: ${customerInfo.phone}`,
-    `Quantity: ${customerInfo.quantity}`,
     `Notes: ${customerInfo.notes || 'None'}`,
     '',
-    'Product:',
+    'Order:',
     `Magnet Type: ${magnetType}`,
+    `Quantity: ${customerInfo.quantity}`,
     `Order ID: ${order.id}`,
     `Submitted: ${submittedAt}`,
     '',
-    'The original uploaded image and final cropped print image are attached.',
+    'Attached Images:',
+    '- Original Customer Photo: the photo the customer uploaded.',
+    '- Print-Ready Magnet Image: the cropped image Jennifer should use for printing.',
+    '',
+    'Jennifer will contact the customer to confirm pickup and payment.',
   ].join('\n');
 }
 
@@ -309,12 +324,12 @@ export default async function handler(req, res) {
         attachments: [
           {
             content: originalImage.content,
-            filename: originalImage.filename,
+            filename: `Original Customer Photo.${originalImage.filename.split('.').pop()}`,
             contentType: originalImage.contentType,
           },
           {
             content: croppedImage.content,
-            filename: croppedImage.filename,
+            filename: `Print-Ready Magnet Image.${croppedImage.filename.split('.').pop()}`,
             contentType: croppedImage.contentType,
           },
         ],
