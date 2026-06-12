@@ -8,11 +8,15 @@ function createImage(imageSrc) {
 }
 
 const OPTIMIZED_IMAGE_TYPE = 'image/jpeg';
-const OPTIMIZED_IMAGE_QUALITY = 0.86;
-const OPTIMIZED_MAX_LONG_EDGE = 1800;
-const OPTIMIZED_TARGET_BYTES = 1.2 * 1024 * 1024;
-const OPTIMIZED_MAX_BYTES = 1.8 * 1024 * 1024;
+const OPTIMIZED_IMAGE_QUALITY = 0.9;
+const OPTIMIZED_MAX_LONG_EDGE = 2200;
+const OPTIMIZED_TARGET_BYTES = 2.2 * 1024 * 1024;
+const OPTIMIZED_MAX_BYTES = 3.2 * 1024 * 1024;
 const MIN_PRINT_LONG_EDGE = 900;
+const SUBMISSION_TARGET_BYTES = 3 * 1024 * 1024;
+const SUBMISSION_MAX_ESTIMATED_JSON_BYTES = 4.2 * 1024 * 1024;
+const CROPPED_TARGET_BYTES = 1.15 * 1024 * 1024;
+const CROPPED_MAX_BYTES = 1.8 * 1024 * 1024;
 
 function getBase64PayloadSize(dataUrl) {
   const base64Value = dataUrl.split(',')[1] || '';
@@ -24,7 +28,19 @@ function canvasToDataUrl(canvas, type, quality) {
   return canvas.toDataURL(type, quality);
 }
 
-function drawImageToCanvas(image, maxLongEdge) {
+export function getDataUrlBytes(dataUrl) {
+  if (!dataUrl || typeof dataUrl !== 'string') {
+    return 0;
+  }
+
+  return getBase64PayloadSize(dataUrl);
+}
+
+function getDataUrlMimeType(dataUrl) {
+  return dataUrl?.match?.(/^data:([^;]+);base64,/)?.[1] || '';
+}
+
+function drawImageToCanvas(image, maxLongEdge, fillStyle = null) {
   const sourceWidth = image.naturalWidth || image.width;
   const sourceHeight = image.naturalHeight || image.height;
   const scale = Math.min(1, maxLongEdge / Math.max(sourceWidth, sourceHeight));
@@ -35,9 +51,73 @@ function drawImageToCanvas(image, maxLongEdge) {
 
   canvas.width = width;
   canvas.height = height;
+  if (fillStyle) {
+    ctx.fillStyle = fillStyle;
+    ctx.fillRect(0, 0, width, height);
+  }
   ctx.drawImage(image, 0, 0, width, height);
 
   return { canvas, width, height };
+}
+
+function encodeCanvas(canvas, preferredTypes, quality) {
+  for (const type of preferredTypes) {
+    const dataUrl = canvasToDataUrl(canvas, type, quality);
+    if (getDataUrlMimeType(dataUrl) === type) {
+      return dataUrl;
+    }
+  }
+
+  return canvasToDataUrl(canvas, OPTIMIZED_IMAGE_TYPE, quality);
+}
+
+async function optimizeDataUrl(dataUrl, {
+  maxLongEdge,
+  minLongEdge,
+  quality,
+  minQuality,
+  targetBytes,
+  maxBytes,
+  preferredTypes,
+  fillStyle = null,
+}) {
+  const image = await createImage(dataUrl);
+  let currentMaxLongEdge = maxLongEdge;
+  let currentQuality = quality;
+  let optimizedDataUrl = dataUrl;
+  let optimizedWidth = image.naturalWidth || image.width;
+  let optimizedHeight = image.naturalHeight || image.height;
+  let optimizedBytes = getDataUrlBytes(dataUrl);
+
+  for (let attempt = 0; attempt < 14; attempt += 1) {
+    const { canvas, width, height } = drawImageToCanvas(image, currentMaxLongEdge, fillStyle);
+    optimizedDataUrl = encodeCanvas(canvas, preferredTypes, currentQuality);
+    optimizedWidth = width;
+    optimizedHeight = height;
+    optimizedBytes = getDataUrlBytes(optimizedDataUrl);
+
+    if (optimizedBytes <= targetBytes || (currentMaxLongEdge <= minLongEdge && currentQuality <= minQuality)) {
+      break;
+    }
+
+    if (currentQuality > minQuality) {
+      currentQuality = Math.max(minQuality, currentQuality - 0.05);
+    } else {
+      currentMaxLongEdge = Math.max(minLongEdge, Math.round(currentMaxLongEdge * 0.88));
+    }
+  }
+
+  if (optimizedBytes > maxBytes) {
+    throw new Error('This photo is still too large to submit after preparation. Please choose a smaller photo or crop tighter before trying again.');
+  }
+
+  return {
+    dataUrl: optimizedDataUrl,
+    optimizedBytes,
+    optimizedWidth,
+    optimizedHeight,
+    mimeType: getDataUrlMimeType(optimizedDataUrl),
+  };
 }
 
 /**
@@ -54,45 +134,108 @@ export async function optimizeImageFile(file) {
   const image = await createImage(originalDataUrl);
   const originalWidth = image.naturalWidth || image.width;
   const originalHeight = image.naturalHeight || image.height;
-  let maxLongEdge = OPTIMIZED_MAX_LONG_EDGE;
-  let quality = OPTIMIZED_IMAGE_QUALITY;
-  let optimizedDataUrl = '';
-  let optimizedWidth = 0;
-  let optimizedHeight = 0;
+  const optimized = await optimizeDataUrl(originalDataUrl, {
+    maxLongEdge: OPTIMIZED_MAX_LONG_EDGE,
+    minLongEdge: MIN_PRINT_LONG_EDGE,
+    quality: OPTIMIZED_IMAGE_QUALITY,
+    minQuality: 0.74,
+    targetBytes: OPTIMIZED_TARGET_BYTES,
+    maxBytes: OPTIMIZED_MAX_BYTES,
+    preferredTypes: [OPTIMIZED_IMAGE_TYPE],
+    fillStyle: '#ffffff',
+  });
 
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const { canvas, width, height } = drawImageToCanvas(image, maxLongEdge);
-    optimizedDataUrl = canvasToDataUrl(canvas, OPTIMIZED_IMAGE_TYPE, quality);
-    optimizedWidth = width;
-    optimizedHeight = height;
+  return {
+    dataUrl: optimized.dataUrl,
+    originalBytes,
+    optimizedBytes: optimized.optimizedBytes,
+    originalWidth,
+    originalHeight,
+    optimizedWidth: optimized.optimizedWidth,
+    optimizedHeight: optimized.optimizedHeight,
+    mimeType: optimized.mimeType,
+  };
+}
 
-    const optimizedBytes = getBase64PayloadSize(optimizedDataUrl);
-    if (optimizedBytes <= OPTIMIZED_TARGET_BYTES || maxLongEdge <= MIN_PRINT_LONG_EDGE) {
-      break;
-    }
+function estimateJsonPayloadBytes(photo, croppedImage) {
+  return Math.ceil((getDataUrlBytes(photo) + getDataUrlBytes(croppedImage)) * 1.4);
+}
 
-    if (quality > 0.78) {
-      quality -= 0.04;
-    } else {
-      maxLongEdge = Math.max(MIN_PRINT_LONG_EDGE, Math.round(maxLongEdge * 0.86));
-    }
+export async function optimizeOrderImagesForSubmission(order) {
+  const croppedPreferredTypes = order.magnetType === 'rectangle'
+    ? [OPTIMIZED_IMAGE_TYPE]
+    : ['image/webp', 'image/png', OPTIMIZED_IMAGE_TYPE];
+
+  let photo = order.photo;
+  let croppedImage = order.croppedImage;
+
+  if (getDataUrlBytes(photo) > OPTIMIZED_TARGET_BYTES) {
+    photo = (await optimizeDataUrl(photo, {
+      maxLongEdge: OPTIMIZED_MAX_LONG_EDGE,
+      minLongEdge: MIN_PRINT_LONG_EDGE,
+      quality: OPTIMIZED_IMAGE_QUALITY,
+      minQuality: 0.72,
+      targetBytes: OPTIMIZED_TARGET_BYTES,
+      maxBytes: OPTIMIZED_MAX_BYTES,
+      preferredTypes: [OPTIMIZED_IMAGE_TYPE],
+      fillStyle: '#ffffff',
+    })).dataUrl;
   }
 
-  const optimizedBytes = getBase64PayloadSize(optimizedDataUrl);
+  if (getDataUrlBytes(croppedImage) > CROPPED_TARGET_BYTES) {
+    croppedImage = (await optimizeDataUrl(croppedImage, {
+      maxLongEdge: Math.max(1200, Math.max(order.cropVerification?.generatedImage?.width || 0, order.cropVerification?.generatedImage?.height || 0)),
+      minLongEdge: MIN_PRINT_LONG_EDGE,
+      quality: 0.92,
+      minQuality: 0.78,
+      targetBytes: CROPPED_TARGET_BYTES,
+      maxBytes: CROPPED_MAX_BYTES,
+      preferredTypes: croppedPreferredTypes,
+      fillStyle: order.magnetType === 'rectangle' ? '#ffffff' : null,
+    })).dataUrl;
+  }
 
-  if (optimizedBytes > OPTIMIZED_MAX_BYTES) {
-    throw new Error('This photo is still too large to submit. Please choose a smaller photo or take a screenshot of the photo and upload that instead.');
+  while (
+    estimateJsonPayloadBytes(photo, croppedImage) > SUBMISSION_TARGET_BYTES &&
+    getDataUrlBytes(photo) > OPTIMIZED_TARGET_BYTES * 0.65
+  ) {
+    photo = (await optimizeDataUrl(photo, {
+      maxLongEdge: 1900,
+      minLongEdge: MIN_PRINT_LONG_EDGE,
+      quality: 0.84,
+      minQuality: 0.7,
+      targetBytes: Math.max(1.2 * 1024 * 1024, getDataUrlBytes(photo) * 0.82),
+      maxBytes: OPTIMIZED_MAX_BYTES,
+      preferredTypes: [OPTIMIZED_IMAGE_TYPE],
+      fillStyle: '#ffffff',
+    })).dataUrl;
+  }
+
+  while (
+    estimateJsonPayloadBytes(photo, croppedImage) > SUBMISSION_TARGET_BYTES &&
+    getDataUrlBytes(croppedImage) > CROPPED_TARGET_BYTES * 0.7
+  ) {
+    croppedImage = (await optimizeDataUrl(croppedImage, {
+      maxLongEdge: Math.max(1100, Math.max(order.cropVerification?.generatedImage?.width || 0, order.cropVerification?.generatedImage?.height || 0)),
+      minLongEdge: MIN_PRINT_LONG_EDGE,
+      quality: 0.88,
+      minQuality: 0.74,
+      targetBytes: Math.max(820 * 1024, getDataUrlBytes(croppedImage) * 0.82),
+      maxBytes: CROPPED_MAX_BYTES,
+      preferredTypes: croppedPreferredTypes,
+      fillStyle: order.magnetType === 'rectangle' ? '#ffffff' : null,
+    })).dataUrl;
+  }
+
+  const estimatedJsonBytes = estimateJsonPayloadBytes(photo, croppedImage);
+  if (estimatedJsonBytes > SUBMISSION_MAX_ESTIMATED_JSON_BYTES) {
+    throw new Error('Your photo is too large to submit from this device after extra preparation. Please crop tighter or choose a smaller photo.');
   }
 
   return {
-    dataUrl: optimizedDataUrl,
-    originalBytes,
-    optimizedBytes,
-    originalWidth,
-    originalHeight,
-    optimizedWidth,
-    optimizedHeight,
-    mimeType: OPTIMIZED_IMAGE_TYPE,
+    ...order,
+    photo,
+    croppedImage,
   };
 }
 

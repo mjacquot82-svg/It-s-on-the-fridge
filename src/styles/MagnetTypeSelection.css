@@ -71,6 +71,7 @@
 
 .round-preview {
   width: 136px;
+  height: 136px;
   background: var(--color-surface);
   border: 2px solid var(--color-border);
   border-radius: 50%;
@@ -88,10 +89,11 @@
 
 .rectangle-preview {
   width: 136px;
+  height: 148px;
   background: var(--color-surface);
   border: 2px solid var(--color-border);
   border-radius: 8px;
-  padding: 20px;
+  padding: 18px 20px;
 }
 
 .rectangle-shape {
@@ -136,10 +138,13 @@
 
   .type-option {
     width: 100%;
-    min-height: 240px;
+    min-height: 252px;
   }
 
-  .type-preview,
+  .type-preview {
+    margin-bottom: 12px;
+  }
+
   .round-preview,
   .rectangle-preview {
     max-width: 136px;

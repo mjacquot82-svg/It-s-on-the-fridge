@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { OrderContext } from './orderContext';
 import { createEmailPayload } from '../utils/emailPayload';
+import { getDataUrlBytes, optimizeOrderImagesForSubmission } from '../utils/cropUtils';
 
 const emptyOrder = {
   magnetType: null,
@@ -79,16 +80,6 @@ function saveStoredValue(key, value) {
   } catch (error) {
     console.error(`Unable to save ${key} to localStorage:`, error);
   }
-}
-
-function getDataUrlBytes(dataUrl) {
-  if (!dataUrl || typeof dataUrl !== 'string') {
-    return 0;
-  }
-
-  const base64Value = dataUrl.split(',')[1] || '';
-  const padding = base64Value.endsWith('==') ? 2 : base64Value.endsWith('=') ? 1 : 0;
-  return Math.floor((base64Value.length * 3) / 4) - padding;
 }
 
 function validateSubmissionPayloadSize(order) {
@@ -200,11 +191,11 @@ export function OrderProvider({ children }) {
   };
 
   const submitOrder = async (turnstileToken) => {
-    const newOrder = {
+    const newOrder = await optimizeOrderImagesForSubmission({
       ...order,
       id: Date.now(),
       submittedAt: new Date().toISOString(),
-    };
+    });
 
     validateSubmissionPayloadSize(newOrder);
 
