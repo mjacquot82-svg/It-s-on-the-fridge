@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react';
-import { useOrder } from '../context/OrderContext';
+import { useOrder } from '../context/useOrder';
 import { optimizeImageFile } from '../utils/cropUtils';
 import '../styles/UploadPhoto.css';
 
-export default function UploadPhoto({ onNext }) {
-  const { setPhoto } = useOrder();
+export default function UploadPhoto({ onNext, onBack }) {
+  const { order, setPhoto } = useOrder();
   const fileInputRef = useRef(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -42,13 +42,15 @@ export default function UploadPhoto({ onNext }) {
 
         <div className="upload-area">
           <div className="upload-icon" aria-hidden="true"></div>
-          <p className="upload-text">Tap to select a photo</p>
+          <p className="upload-text">
+            {order.photo ? 'Photo selected' : 'Tap to select a photo'}
+          </p>
           <button
             className="upload-button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isOptimizing}
           >
-            {isOptimizing ? 'Preparing Photo...' : 'Choose Photo'}
+            {isOptimizing ? 'Preparing Photo...' : order.photo ? 'Choose Different Photo' : 'Choose Photo'}
           </button>
           <input
             ref={fileInputRef}
@@ -72,6 +74,19 @@ export default function UploadPhoto({ onNext }) {
             <li>Large phone photos will be prepared automatically</li>
             <li>Portrait or landscape photos both work</li>
           </ul>
+        </div>
+
+        <div className="action-buttons">
+          <button className="back-button" onClick={onBack} disabled={isOptimizing}>
+            Back
+          </button>
+          <button
+            className="next-button"
+            onClick={onNext}
+            disabled={isOptimizing || !order.photo}
+          >
+            Continue
+          </button>
         </div>
       </div>
     </div>

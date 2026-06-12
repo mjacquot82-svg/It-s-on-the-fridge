@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useOrder } from '../context/OrderContext';
+import { useOrder } from '../context/useOrder';
 import '../styles/OrderDetails.css';
 
-export default function OrderDetails({ onNext }) {
+export default function OrderDetails({ onNext, onBack }) {
   const { order, setCustomerInfo } = useOrder();
   const [formData, setFormData] = useState(order.customerInfo);
   const [errors, setErrors] = useState({});
@@ -52,6 +52,11 @@ export default function OrderDetails({ onNext }) {
       setCustomerInfo(formData);
       onNext();
     }
+  };
+
+  const handleBack = () => {
+    setCustomerInfo(formData);
+    onBack();
   };
 
   return (
@@ -171,9 +176,14 @@ export default function OrderDetails({ onNext }) {
           No online payment is required. Jennifer will contact you after submission to confirm pickup and payment.
         </p>
 
-        <button className="next-button" onClick={handleNext}>
-          Review Order
-        </button>
+        <div className="action-buttons">
+          <button className="back-button" onClick={handleBack}>
+            Back
+          </button>
+          <button className="next-button" onClick={handleNext}>
+            Review Order
+          </button>
+        </div>
       </div>
     </div>
   );

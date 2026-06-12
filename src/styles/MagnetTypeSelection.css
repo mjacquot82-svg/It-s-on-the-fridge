@@ -9,6 +9,7 @@
 
 .type-content {
   text-align: center;
+  width: 100%;
   max-width: 600px;
   background: var(--color-surface);
   padding: 40px 20px;
@@ -93,7 +94,7 @@
   padding: 20px;
 }
 
-.rectangle {
+.rectangle-shape {
   width: 68px;
   height: 100px;
   background: var(--color-secondary);
@@ -122,6 +123,7 @@
 @media (max-width: 640px) {
   .type-content {
     padding: 30px 20px;
+    max-width: 420px;
   }
 
   .type-content h1 {
@@ -133,6 +135,13 @@
   }
 
   .type-option {
+    width: 100%;
     min-height: 240px;
+  }
+
+  .type-preview,
+  .round-preview,
+  .rectangle-preview {
+    max-width: 136px;
   }
 }

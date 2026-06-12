@@ -1,10 +1,10 @@
 import { useState, useCallback, useEffect } from 'react';
 import Cropper from 'react-easy-crop';
-import { useOrder } from '../context/OrderContext';
+import { useOrder } from '../context/useOrder';
 import { generateCroppedImage, getImageDimensions, getPreviewDimensions } from '../utils/cropUtils';
 import '../styles/AdjustPhoto.css';
 
-export default function AdjustPhoto({ onNext }) {
+export default function AdjustPhoto({ onNext, onBack }) {
   const {
     order,
     setCrop,
@@ -119,6 +119,11 @@ export default function AdjustPhoto({ onNext }) {
           <p className="subtitle">
             Please go back and upload your photo again to continue adjusting your magnet.
           </p>
+          <div className="action-buttons">
+            <button className="back-button" onClick={onBack}>
+              Back
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -189,6 +194,13 @@ export default function AdjustPhoto({ onNext }) {
         </div>
 
         <div className="action-buttons">
+          <button
+            className="back-button"
+            onClick={onBack}
+            disabled={isGenerating}
+          >
+            Back
+          </button>
           <button 
             className="next-button" 
             onClick={handleNext}

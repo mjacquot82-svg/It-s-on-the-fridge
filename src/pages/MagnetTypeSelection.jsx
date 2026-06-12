@@ -1,7 +1,7 @@
-import { useOrder } from '../context/OrderContext';
+import { useOrder } from '../context/useOrder';
 import '../styles/MagnetTypeSelection.css';
 
-export default function MagnetTypeSelection({ onNext }) {
+export default function MagnetTypeSelection({ onNext, onBack }) {
   const { setMagnetType } = useOrder();
 
   const handleSelectType = (type) => {
@@ -28,14 +28,20 @@ export default function MagnetTypeSelection({ onNext }) {
           </button>
 
           <button
-            className="type-option rectangle"
+            className="type-option rectangle-option"
             onClick={() => handleSelectType('rectangle')}
           >
             <div className="type-preview rectangle-preview">
-              <div className="rectangle"></div>
+              <div className="rectangle-shape"></div>
             </div>
             <h2>Rectangle Magnet</h2>
             <p>Great for full photos and wider layouts</p>
+          </button>
+        </div>
+
+        <div className="action-buttons">
+          <button className="back-button" onClick={onBack}>
+            Back
           </button>
         </div>
       </div>

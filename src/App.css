@@ -73,9 +73,44 @@ input, textarea, select {
   font-size: 16px;
 }
 
+.action-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.back-button {
+  flex: 1;
+  max-width: 200px;
+  background: #f4f6f5;
+  color: var(--color-text);
+  padding: 14px 24px;
+  font-size: 16px;
+  font-weight: 700;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  border: 2px solid var(--color-border);
+}
+
+.back-button:hover:not(:disabled) {
+  background: var(--color-border);
+  border-color: #7b878e;
+}
+
 /* Mobile optimization */
 @media (max-width: 640px) {
   .app {
     font-size: 16px; /* Prevents zoom on iOS */
+  }
+
+  .action-buttons {
+    flex-direction: column;
+  }
+
+  .back-button {
+    width: 100%;
+    max-width: none;
   }
 }

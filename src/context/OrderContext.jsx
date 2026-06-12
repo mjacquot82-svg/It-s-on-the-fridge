@@ -1,7 +1,6 @@
-import { createContext, useState, useContext, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { OrderContext } from './orderContext';
 import { createEmailPayload } from '../utils/emailPayload';
-
-const OrderContext = createContext();
 
 const emptyOrder = {
   magnetType: null,
@@ -123,8 +122,17 @@ async function sendOrderEmail(order, turnstileToken) {
 
 export function OrderProvider({ children }) {
   const [order, setOrder] = useState(() => {
-    const storedOrder = parseStoredValue('currentOrder', emptyOrder);
-    return { ...emptyOrder, ...storedOrder, photo: null, croppedImage: null };
+    try {
+      localStorage.removeItem('currentOrder');
+      localStorage.removeItem('currentPage');
+      localStorage.removeItem('lastSubmittedOrder');
+      sessionStorage.removeItem('currentPage');
+      sessionStorage.removeItem('lastSubmittedOrder');
+    } catch (error) {
+      console.warn('Unable to clear legacy workflow storage:', error);
+    }
+
+    return emptyOrder;
   });
 
   const [orders, setOrders] = useState(() => {
@@ -132,28 +140,24 @@ export function OrderProvider({ children }) {
   });
 
   const [lastSubmittedOrder, setLastSubmittedOrder] = useState(() => {
-    return parseStoredValue('lastSubmittedOrder', null);
+    return null;
   });
-
-  // Persist only lightweight metadata. Image data stays in memory.
-  useEffect(() => {
-    saveStoredValue('currentOrder', sanitizeOrderForStorage(order));
-  }, [order]);
 
   // Persist only lightweight order history metadata.
   useEffect(() => {
     saveStoredValue('orders', orders.map(sanitizeOrderForStorage));
   }, [orders]);
 
-  // Persist only lightweight submitted-order metadata.
-  useEffect(() => {
-    if (lastSubmittedOrder) {
-      saveStoredValue('lastSubmittedOrder', sanitizeOrderForStorage(lastSubmittedOrder));
-    }
-  }, [lastSubmittedOrder]);
-
   const setMagnetType = (type) => {
-    setOrder(prev => ({ ...prev, magnetType: type }));
+    setOrder(prev => ({
+      ...prev,
+      magnetType: type,
+      crop: { x: 0, y: 0 },
+      croppedAreaPixels: null,
+      zoom: 1,
+      croppedImage: null,
+      cropVerification: null,
+    }));
   };
 
   const setPhoto = (photoData) => {
@@ -221,12 +225,29 @@ export function OrderProvider({ children }) {
     
     // Reset current order
     setOrder(emptyOrder);
+    try {
+      localStorage.removeItem('currentOrder');
+      localStorage.removeItem('currentPage');
+      sessionStorage.removeItem('currentPage');
+      sessionStorage.removeItem('lastSubmittedOrder');
+    } catch (error) {
+      console.warn('Unable to clear completed workflow storage:', error);
+    }
 
     return storedOrder;
   };
 
   const resetOrder = () => {
     setOrder(emptyOrder);
+    try {
+      localStorage.removeItem('currentOrder');
+      localStorage.removeItem('currentPage');
+      localStorage.removeItem('lastSubmittedOrder');
+      sessionStorage.removeItem('currentPage');
+      sessionStorage.removeItem('lastSubmittedOrder');
+    } catch (error) {
+      console.warn('Unable to clear workflow storage:', error);
+    }
   };
 
   return (
@@ -250,12 +271,4 @@ export function OrderProvider({ children }) {
       {children}
     </OrderContext.Provider>
   );
-}
-
-export function useOrder() {
-  const context = useContext(OrderContext);
-  if (!context) {
-    throw new Error('useOrder must be used within OrderProvider');
-  }
-  return context;
 }
