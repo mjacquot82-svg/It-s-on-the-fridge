@@ -110,6 +110,18 @@ input, textarea, select {
   border-color: #7b878e;
 }
 
+.build-version {
+  position: fixed;
+  right: 12px;
+  bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  z-index: 90;
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0.72;
+  pointer-events: none;
+}
+
 /* Mobile optimization */
 @media (max-width: 640px) {
   .app {
@@ -124,6 +136,11 @@ input, textarea, select {
   .back-button {
     width: 100%;
     max-width: none;
+  }
+
+  .build-version {
+    right: 10px;
+    font-size: 10px;
   }
 }
 

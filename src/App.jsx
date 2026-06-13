@@ -8,6 +8,7 @@ import AdjustPhoto from './pages/AdjustPhoto';
 import OrderDetails from './pages/OrderDetails';
 import ReviewOrder from './pages/ReviewOrder';
 import OrderSubmitted from './pages/OrderSubmitted';
+import BuildVersion from './components/BuildVersion';
 import './App.css';
 
 function AppContent() {
@@ -60,6 +61,7 @@ function AppContent() {
       ) : (
         <CurrentPage onRestart={handleRestart} />
       )}
+      <BuildVersion />
     </div>
   );
 }
