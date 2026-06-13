@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useOrder } from '../context/useOrder';
 import { getPreviewDimensions } from '../utils/cropUtils';
+import { formatCurrency, getMagnetPrice, getOrderTotal } from '../utils/pricing';
 import '../styles/ReviewOrder.css';
 
 const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
 
 export default function ReviewOrder({ onNext, onBack }) {
-  const { order, submitOrder } = useOrder();
+  const { order, pricingSettings, submitOrder } = useOrder();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [captchaToken, setCaptchaToken] = useState('');
@@ -15,6 +16,8 @@ export default function ReviewOrder({ onNext, onBack }) {
   const widgetIdRef = useRef(null);
 
   const dimensions = getPreviewDimensions(order.magnetType);
+  const unitPrice = getMagnetPrice(pricingSettings, order.magnetType);
+  const estimatedTotal = getOrderTotal(pricingSettings, order.magnetType, order.customerInfo.quantity);
 
   useEffect(() => {
     if (!turnstileSiteKey) {
@@ -140,6 +143,9 @@ export default function ReviewOrder({ onNext, onBack }) {
             <p className="magnet-type">
               <strong>Type:</strong> {order.magnetType === 'round' ? 'Round Magnet' : 'Rectangle Magnet'}
             </p>
+            <p className="magnet-type">
+              <strong>Price:</strong> {formatCurrency(unitPrice)} each
+            </p>
             <p className="preview-note">
               This preview represents what Jennifer will use for printing.
             </p>
@@ -169,6 +175,16 @@ export default function ReviewOrder({ onNext, onBack }) {
             <span className="value">{order.customerInfo.quantity}</span>
           </div>
 
+          <div className="summary-item">
+            <span className="label">Unit Price:</span>
+            <span className="value">{formatCurrency(unitPrice)}</span>
+          </div>
+
+          <div className="summary-item total-item">
+            <span className="label">Estimated Total:</span>
+            <span className="value">{formatCurrency(estimatedTotal)}</span>
+          </div>
+
           {order.customerInfo.notes && (
             <div className="summary-item">
               <span className="label">Notes:</span>
@@ -180,6 +196,10 @@ export default function ReviewOrder({ onNext, onBack }) {
         <p className="payment-confirmation-note">
           No online payment is required. Jennifer will contact you after submission to confirm your order, pickup, and payment.
         </p>
+
+        {pricingSettings.promotionEnabled && pricingSettings.promotionText && (
+          <p className="review-promotion-note">{pricingSettings.promotionText}</p>
+        )}
 
         {submitError && (
           <div className="submit-error" role="alert">

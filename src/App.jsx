@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { OrderProvider } from './context/OrderContext';
 import { useOrder } from './context/useOrder';
 import WelcomeScreen from './pages/WelcomeScreen';
@@ -8,11 +8,13 @@ import AdjustPhoto from './pages/AdjustPhoto';
 import OrderDetails from './pages/OrderDetails';
 import ReviewOrder from './pages/ReviewOrder';
 import OrderSubmitted from './pages/OrderSubmitted';
+import SettingsPage from './pages/SettingsPage';
 import BuildVersion from './components/BuildVersion';
 import './App.css';
 
 function AppContent() {
   const { resetOrder } = useOrder();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(() => window.location.hash === '#settings');
   const pages = useMemo(() => [
     { component: WelcomeScreen, title: 'Welcome' },
     { component: MagnetTypeSelection, title: 'Select Type' },
@@ -26,6 +28,15 @@ function AppContent() {
   const [currentPage, setCurrentPage] = useState(0);
 
   const CurrentPage = pages[currentPage].component;
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      setIsSettingsOpen(window.location.hash === '#settings');
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   const handleNext = () => {
     if (currentPage < pages.length - 1) {
@@ -45,6 +56,20 @@ function AppContent() {
   };
 
   const pageProps = { onNext: handleNext, onBack: handleBack };
+
+  if (isSettingsOpen) {
+    return (
+      <div className="app">
+        <SettingsPage
+          onExit={() => {
+            window.location.hash = '';
+            setIsSettingsOpen(false);
+          }}
+        />
+        <BuildVersion />
+      </div>
+    );
+  }
 
   return (
     <div className="app">

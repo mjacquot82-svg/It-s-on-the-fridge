@@ -21,6 +21,27 @@ const emptyOrder = {
   },
 };
 
+const defaultPricingSettings = {
+  roundMagnetPrice: 5,
+  rectangleMagnetPrice: 7,
+  promotionText: '',
+  promotionEnabled: false,
+};
+
+function normalizePrice(value, fallback) {
+  const price = Number(value);
+  return Number.isFinite(price) && price >= 0 ? price : fallback;
+}
+
+function normalizePricingSettings(settings = {}) {
+  return {
+    roundMagnetPrice: normalizePrice(settings.roundMagnetPrice, defaultPricingSettings.roundMagnetPrice),
+    rectangleMagnetPrice: normalizePrice(settings.rectangleMagnetPrice, defaultPricingSettings.rectangleMagnetPrice),
+    promotionText: String(settings.promotionText || ''),
+    promotionEnabled: Boolean(settings.promotionEnabled),
+  };
+}
+
 function parseStoredValue(key, fallback) {
   try {
     const saved = localStorage.getItem(key);
@@ -41,6 +62,18 @@ function getImageMetadata(dataUrl) {
   return {
     mimeType: match?.[1] || 'unknown',
   };
+}
+
+function getStringBytes(value) {
+  if (typeof TextEncoder !== 'undefined') {
+    return new TextEncoder().encode(value).length;
+  }
+
+  return new Blob([value]).size;
+}
+
+function logImageSubmissionDiagnostic(message, details) {
+  console.info(`[image-submission] ${message}`, details);
 }
 
 function sanitizeEmailPayload(emailPayload) {
@@ -82,29 +115,63 @@ function saveStoredValue(key, value) {
   }
 }
 
-function validateSubmissionPayloadSize(order) {
+function validateSubmissionPayloadSize(order, actualJsonPayloadBytes) {
   const originalBytes = getDataUrlBytes(order.photo);
   const croppedBytes = getDataUrlBytes(order.croppedImage);
   const estimatedJsonBytes = Math.ceil((originalBytes + croppedBytes) * 1.4);
-  const maxEstimatedJsonBytes = 4.2 * 1024 * 1024;
+  const maxActualJsonPayloadBytes = 4 * 1024 * 1024;
 
-  if (estimatedJsonBytes > maxEstimatedJsonBytes) {
+  logImageSubmissionDiagnostic('client payload validation', {
+    stage: 'client payload validation',
+    originalImageBytes: originalBytes,
+    croppedImageBytes: croppedBytes,
+    estimatedPayloadBytes: estimatedJsonBytes,
+    actualJsonPayloadBytes,
+    maxActualJsonPayloadBytes,
+  });
+
+  if (actualJsonPayloadBytes > maxActualJsonPayloadBytes) {
+    logImageSubmissionDiagnostic('rejected during client payload validation', {
+      stage: 'client payload validation',
+      originalImageBytes: originalBytes,
+      croppedImageBytes: croppedBytes,
+      estimatedPayloadBytes: estimatedJsonBytes,
+      actualJsonPayloadBytes,
+      maxActualJsonPayloadBytes,
+    });
     throw new Error('Your photo is too large to submit from this device. Please go back and choose a smaller photo, or take a screenshot of the photo and upload that instead.');
   }
 }
 
 async function sendOrderEmail(order, turnstileToken) {
+  const requestBody = JSON.stringify({ order, turnstileToken });
+  const actualJsonPayloadBytes = getStringBytes(requestBody);
+
+  logImageSubmissionDiagnostic('api request payload', {
+    stage: 'api request',
+    originalImageBytes: getDataUrlBytes(order.photo),
+    croppedImageBytes: getDataUrlBytes(order.croppedImage),
+    estimatedPayloadBytes: Math.ceil((getDataUrlBytes(order.photo) + getDataUrlBytes(order.croppedImage)) * 1.4),
+    actualJsonPayloadBytes,
+  });
+
   const response = await fetch('/api/send-order-email', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ order, turnstileToken }),
+    body: requestBody,
   });
 
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
+    logImageSubmissionDiagnostic('rejected by api request', {
+      stage: 'api request',
+      status: response.status,
+      error: data.error || 'Unable to send order email. Please try again.',
+      actualJsonPayloadBytes,
+    });
     throw new Error(data.error || 'Unable to send order email. Please try again.');
   }
 
@@ -134,10 +201,25 @@ export function OrderProvider({ children }) {
     return null;
   });
 
+  const [pricingSettings, setPricingSettings] = useState(() => {
+    return normalizePricingSettings(parseStoredValue('pricingSettings', defaultPricingSettings));
+  });
+
   // Persist only lightweight order history metadata.
   useEffect(() => {
     saveStoredValue('orders', orders.map(sanitizeOrderForStorage));
   }, [orders]);
+
+  useEffect(() => {
+    saveStoredValue('pricingSettings', pricingSettings);
+  }, [pricingSettings]);
+
+  const updatePricingSettings = (nextSettings) => {
+    setPricingSettings(prev => normalizePricingSettings({
+      ...prev,
+      ...nextSettings,
+    }));
+  };
 
   const setMagnetType = (type) => {
     setOrder(prev => ({
@@ -191,13 +273,29 @@ export function OrderProvider({ children }) {
   };
 
   const submitOrder = async (turnstileToken) => {
+    logImageSubmissionDiagnostic('submission started', {
+      stage: 'submission start',
+      originalImageBytes: getDataUrlBytes(order.photo),
+      croppedImageBytes: getDataUrlBytes(order.croppedImage),
+      estimatedPayloadBytes: Math.ceil((getDataUrlBytes(order.photo) + getDataUrlBytes(order.croppedImage)) * 1.4),
+    });
+
     const newOrder = await optimizeOrderImagesForSubmission({
       ...order,
       id: Date.now(),
       submittedAt: new Date().toISOString(),
     });
 
-    validateSubmissionPayloadSize(newOrder);
+    const pendingRequestBody = JSON.stringify({ order: newOrder, turnstileToken });
+    logImageSubmissionDiagnostic('actual payload before client validation', {
+      stage: 'pre-client payload validation',
+      originalImageBytes: getDataUrlBytes(newOrder.photo),
+      croppedImageBytes: getDataUrlBytes(newOrder.croppedImage),
+      estimatedPayloadBytes: Math.ceil((getDataUrlBytes(newOrder.photo) + getDataUrlBytes(newOrder.croppedImage)) * 1.4),
+      actualJsonPayloadBytes: getStringBytes(pendingRequestBody),
+    });
+
+    validateSubmissionPayloadSize(newOrder, getStringBytes(pendingRequestBody));
 
     const emailDelivery = await sendOrderEmail(newOrder, turnstileToken);
     
@@ -247,6 +345,8 @@ export function OrderProvider({ children }) {
         order,
         orders,
         lastSubmittedOrder,
+        pricingSettings,
+        updatePricingSettings,
         setMagnetType,
         setPhoto,
         setCrop,

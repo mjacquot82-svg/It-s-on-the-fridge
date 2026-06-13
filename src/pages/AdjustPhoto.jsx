@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import Cropper from 'react-easy-crop';
 import { useOrder } from '../context/useOrder';
-import { generateCroppedImage, getImageDimensions, getPreviewDimensions } from '../utils/cropUtils';
+import { generateCroppedImage, getDataUrlBytes, getImageDimensions, getPreviewDimensions } from '../utils/cropUtils';
 import '../styles/AdjustPhoto.css';
 
 export default function AdjustPhoto({ onNext, onBack }) {
@@ -88,6 +88,12 @@ export default function AdjustPhoto({ onNext, onBack }) {
         order.magnetType
       );
       const generatedDimensions = await getImageDimensions(croppedImage);
+      console.info('[image-submission] cropped image generated', {
+        stage: 'crop generation',
+        originalImageBytes: getDataUrlBytes(order.photo),
+        croppedImageBytes: getDataUrlBytes(croppedImage),
+        croppedSize: `${generatedDimensions.width}x${generatedDimensions.height}`,
+      });
       const cropVerification = {
         magnetType: order.magnetType,
         cropPosition: crop,

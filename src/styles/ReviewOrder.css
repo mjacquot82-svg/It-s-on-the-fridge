@@ -95,6 +95,19 @@
   text-align: left;
 }
 
+.review-promotion-note {
+  background: var(--color-soft-warm);
+  border: 1px solid #eadfbf;
+  border-radius: 10px;
+  color: #51452c;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+  margin: -8px 0 18px;
+  padding: 12px;
+  text-align: left;
+}
+
 .order-summary {
   text-align: left;
   background: var(--color-soft);
@@ -136,6 +149,16 @@
   text-align: right;
   flex: 1;
   margin-left: 12px;
+}
+
+.summary-item.total-item {
+  font-size: 15px;
+}
+
+.summary-item.total-item .label,
+.summary-item.total-item .value {
+  color: var(--color-primary);
+  font-weight: 800;
 }
 
 .order-id {

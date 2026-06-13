@@ -17,7 +17,8 @@ export default function UploadPhoto({ onNext, onBack }) {
 
       try {
         const optimizedImage = await optimizeImageFile(file);
-        console.info('Image optimized for order submission', {
+        console.info('[image-submission] upload optimization complete', {
+          stage: 'upload optimization',
           originalBytes: optimizedImage.originalBytes,
           optimizedBytes: optimizedImage.optimizedBytes,
           originalSize: `${optimizedImage.originalWidth}x${optimizedImage.originalHeight}`,

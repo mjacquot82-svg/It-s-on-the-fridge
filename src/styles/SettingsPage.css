@@ -1,0 +1,125 @@
+.settings-screen {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.settings-content {
+  width: 100%;
+  max-width: 560px;
+  background: var(--color-surface);
+  padding: 30px 20px;
+  border-radius: 14px;
+  box-shadow: var(--shadow-card);
+  animation: slideUp 0.5s ease-out;
+}
+
+.settings-content h1 {
+  color: var(--color-text);
+  font-size: 36px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.settings-form {
+  text-align: left;
+}
+
+.settings-form .form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+
+.settings-form .form-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+}
+
+.settings-form .form-group label {
+  color: var(--color-text);
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.settings-form .form-group input,
+.settings-form .form-group textarea {
+  border: 2px solid var(--color-border);
+  border-radius: 8px;
+  padding: 12px;
+  font-family: inherit;
+  font-size: 16px;
+}
+
+.settings-form .form-group input:focus,
+.settings-form .form-group textarea:focus {
+  border-color: var(--color-primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(99, 199, 189, 0.18);
+}
+
+.settings-form textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.settings-toggle input {
+  width: 18px;
+  height: 18px;
+}
+
+.settings-error,
+.settings-success {
+  border-radius: 8px;
+  margin-bottom: 18px;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.settings-error {
+  background: #fdecea;
+  border-left: 4px solid var(--color-danger);
+  color: #8a1f16;
+}
+
+.settings-success {
+  background: var(--color-soft);
+  border-left: 4px solid var(--color-success);
+  color: var(--color-primary);
+}
+
+@media (max-width: 640px) {
+  .settings-screen {
+    align-items: flex-start;
+    padding-top: 16px;
+  }
+
+  .settings-content {
+    padding: 24px 15px;
+  }
+
+  .settings-content h1 {
+    font-size: 28px;
+  }
+
+  .settings-form .form-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
