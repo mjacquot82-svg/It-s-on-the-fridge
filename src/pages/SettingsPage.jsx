@@ -5,16 +5,18 @@ import '../styles/SettingsPage.css';
 const SETTINGS_PIN = '2468';
 
 export default function SettingsPage({ onExit }) {
-  const { pricingSettings, updatePricingSettings } = useOrder();
+  const { pricingSettings, pricingSettingsStatus, updatePricingSettings } = useOrder();
   const [pin, setPin] = useState('');
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [pinError, setPinError] = useState('');
   const [formValues, setFormValues] = useState(pricingSettings);
+  const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
 
   const handleUnlock = (event) => {
     event.preventDefault();
     if (pin === SETTINGS_PIN) {
+      setFormValues(pricingSettings);
       setIsUnlocked(true);
       setPinError('');
       return;
@@ -32,14 +34,23 @@ export default function SettingsPage({ onExit }) {
     }));
   };
 
-  const handleSave = (event) => {
+  const handleSave = async (event) => {
     event.preventDefault();
-    updatePricingSettings({
-      ...formValues,
-      roundMagnetPrice: Number(formValues.roundMagnetPrice),
-      rectangleMagnetPrice: Number(formValues.rectangleMagnetPrice),
-    });
-    setSaveMessage('Settings saved.');
+    setIsSaving(true);
+    setSaveMessage('');
+    try {
+      await updatePricingSettings({
+        ...formValues,
+        roundMagnetPrice: Number(formValues.roundMagnetPrice),
+        rectangleMagnetPrice: Number(formValues.rectangleMagnetPrice),
+      }, pin);
+      setSaveMessage('Settings saved.');
+    } catch (error) {
+      setSaveMessage('');
+      setPinError(error.message || 'Unable to save settings.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -47,6 +58,11 @@ export default function SettingsPage({ onExit }) {
       <div className="settings-content">
         <h1>Settings</h1>
         <p className="subtitle">Update prices and promotions.</p>
+        {pricingSettingsStatus === 'fallback' && (
+          <div className="settings-warning" role="status">
+            Supabase settings are unavailable. Defaults are shown until the connection is restored.
+          </div>
+        )}
 
         {!isUnlocked ? (
           <form className="settings-form" onSubmit={handleUnlock}>
@@ -125,11 +141,11 @@ export default function SettingsPage({ onExit }) {
             {saveMessage && <div className="settings-success" role="status">{saveMessage}</div>}
 
             <div className="action-buttons">
-              <button type="button" className="back-button" onClick={onExit}>
+              <button type="button" className="back-button" onClick={onExit} disabled={isSaving}>
                 Back
               </button>
-              <button type="submit" className="next-button">
-                Save Settings
+              <button type="submit" className="next-button" disabled={isSaving}>
+                {isSaving ? 'Saving...' : 'Save Settings'}
               </button>
             </div>
           </form>

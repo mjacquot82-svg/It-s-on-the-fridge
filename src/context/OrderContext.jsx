@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
 import { OrderContext } from './orderContext';
 import { createEmailPayload } from '../utils/emailPayload';
+import {
+  defaultPricingSettings,
+  fetchPricingSettings,
+  normalizePricingSettings,
+  savePricingSettings,
+} from '../utils/appSettings';
 import { getDataUrlBytes, optimizeOrderImagesForSubmission } from '../utils/cropUtils';
 
 const emptyOrder = {
@@ -20,27 +26,6 @@ const emptyOrder = {
     notes: '',
   },
 };
-
-const defaultPricingSettings = {
-  roundMagnetPrice: 5,
-  rectangleMagnetPrice: 7,
-  promotionText: '',
-  promotionEnabled: false,
-};
-
-function normalizePrice(value, fallback) {
-  const price = Number(value);
-  return Number.isFinite(price) && price >= 0 ? price : fallback;
-}
-
-function normalizePricingSettings(settings = {}) {
-  return {
-    roundMagnetPrice: normalizePrice(settings.roundMagnetPrice, defaultPricingSettings.roundMagnetPrice),
-    rectangleMagnetPrice: normalizePrice(settings.rectangleMagnetPrice, defaultPricingSettings.rectangleMagnetPrice),
-    promotionText: String(settings.promotionText || ''),
-    promotionEnabled: Boolean(settings.promotionEnabled),
-  };
-}
 
 function parseStoredValue(key, fallback) {
   try {
@@ -202,8 +187,9 @@ export function OrderProvider({ children }) {
   });
 
   const [pricingSettings, setPricingSettings] = useState(() => {
-    return normalizePricingSettings(parseStoredValue('pricingSettings', defaultPricingSettings));
+    return defaultPricingSettings;
   });
+  const [pricingSettingsStatus, setPricingSettingsStatus] = useState('loading');
 
   // Persist only lightweight order history metadata.
   useEffect(() => {
@@ -211,14 +197,42 @@ export function OrderProvider({ children }) {
   }, [orders]);
 
   useEffect(() => {
-    saveStoredValue('pricingSettings', pricingSettings);
-  }, [pricingSettings]);
+    let isCurrent = true;
 
-  const updatePricingSettings = (nextSettings) => {
-    setPricingSettings(prev => normalizePricingSettings({
-      ...prev,
-      ...nextSettings,
-    }));
+    async function loadPricingSettings() {
+      try {
+        const remoteSettings = await fetchPricingSettings();
+        if (isCurrent) {
+          setPricingSettings(remoteSettings);
+          setPricingSettingsStatus('ready');
+        }
+      } catch (error) {
+        console.warn('Unable to load Supabase pricing settings; using defaults:', error);
+        if (isCurrent) {
+          setPricingSettings(defaultPricingSettings);
+          setPricingSettingsStatus('fallback');
+        }
+      }
+    }
+
+    loadPricingSettings();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
+  const updatePricingSettings = async (nextSettings, pin) => {
+    const savedSettings = await savePricingSettings(
+      normalizePricingSettings({
+        ...pricingSettings,
+        ...nextSettings,
+      }),
+      pin
+    );
+    setPricingSettings(savedSettings);
+    setPricingSettingsStatus('ready');
+    return savedSettings;
   };
 
   const setMagnetType = (type) => {
@@ -346,6 +360,7 @@ export function OrderProvider({ children }) {
         orders,
         lastSubmittedOrder,
         pricingSettings,
+        pricingSettingsStatus,
         updatePricingSettings,
         setMagnetType,
         setPhoto,

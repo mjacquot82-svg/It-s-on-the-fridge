@@ -84,7 +84,8 @@
 }
 
 .settings-error,
-.settings-success {
+.settings-success,
+.settings-warning {
   border-radius: 8px;
   margin-bottom: 18px;
   padding: 12px;
@@ -102,6 +103,12 @@
   background: var(--color-soft);
   border-left: 4px solid var(--color-success);
   color: var(--color-primary);
+}
+
+.settings-warning {
+  background: var(--color-soft-warm);
+  border-left: 4px solid var(--color-accent-yellow);
+  color: #51452c;
 }
 
 @media (max-width: 640px) {
