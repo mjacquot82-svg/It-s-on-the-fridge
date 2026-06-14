@@ -29,7 +29,13 @@ export default function WelcomeScreen({ onNext }) {
         </div>
 
         {pricingSettings.promotionEnabled && pricingSettings.promotionText && (
-          <p className="promotion-note">{pricingSettings.promotionText}</p>
+          <section className="promotion-card" aria-label="Current promotion">
+            <span className="promotion-icon" aria-hidden="true">%</span>
+            <div className="promotion-copy">
+              <h2>Special Offer</h2>
+              <p>{pricingSettings.promotionText}</p>
+            </div>
+          </section>
         )}
         
         <ol className="process-list">

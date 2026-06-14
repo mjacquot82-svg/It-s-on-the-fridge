@@ -64,7 +64,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 20px;
 }
 
 .price-item {
@@ -87,17 +87,48 @@
   font-size: 18px;
 }
 
-.promotion-note {
-  background: var(--color-soft-warm);
-  border: 1px solid #eadfbf;
-  border-radius: 10px;
-  color: #51452c;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.4;
-  margin: 0 0 18px;
-  padding: 12px;
+.promotion-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px;
+  align-items: start;
+  background: linear-gradient(135deg, #fff9e7 0%, #fff1f7 100%);
+  border: 2px solid rgba(232, 61, 140, 0.28);
+  border-left: 6px solid var(--color-accent-pink);
+  border-radius: 12px;
+  color: var(--color-text);
+  margin: 0 0 26px;
+  padding: 18px 18px 18px 16px;
   text-align: left;
+  box-shadow: 0 8px 20px rgba(11, 48, 72, 0.1);
+}
+
+.promotion-icon {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-accent-pink);
+  color: var(--color-surface);
+  border-radius: 50%;
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.promotion-copy h2 {
+  color: var(--color-primary);
+  font-size: 21px;
+  line-height: 1.2;
+  margin-bottom: 6px;
+}
+
+.promotion-copy p {
+  color: #51452c;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.45;
 }
 
 .process-list {

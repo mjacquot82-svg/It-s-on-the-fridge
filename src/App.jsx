@@ -86,7 +86,6 @@ function AppContent() {
       ) : (
         <CurrentPage onRestart={handleRestart} />
       )}
-      <BuildVersion />
     </div>
   );
 }
