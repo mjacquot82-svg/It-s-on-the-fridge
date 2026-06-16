@@ -1,73 +1,135 @@
-const CACHE_NAME = 'fridge-magnets-v1';
-const urlsToCache = [
-  '/',
-  '/index.html',
-];
+const CACHE_VERSION = 'v2';
+const HTML_CACHE = `fridge-magnets-html-${CACHE_VERSION}`;
+const ASSET_CACHE = `fridge-magnets-assets-${CACHE_VERSION}`;
+const OFFLINE_HTML_URL = '/index.html';
+const EXPECTED_CACHES = [HTML_CACHE, ASSET_CACHE];
 
-// Install event
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(urlsToCache);
-    })
-  );
+  event.waitUntil(seedOfflineHtml());
   self.skipWaiting();
 });
 
-// Activate event
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
+    Promise.all([
+      caches.keys().then((cacheNames) =>
+        Promise.all(
+          cacheNames.map((cacheName) => {
+            if (!EXPECTED_CACHES.includes(cacheName)) {
+              return caches.delete(cacheName);
+            }
+
+            return undefined;
+          })
+        )
+      ),
+    ])
   );
   self.clients.claim();
 });
 
-// Fetch event - Cache-first strategy with network fallback
+function isSameOrigin(requestUrl) {
+  return requestUrl.origin === self.location.origin;
+}
+
+function isNavigationRequest(request) {
+  return request.mode === 'navigate' || request.destination === 'document';
+}
+
+function isHtmlShellRequest(request, requestUrl) {
+  return (
+    isNavigationRequest(request) ||
+    requestUrl.pathname === '/' ||
+    requestUrl.pathname === '/index.html'
+  );
+}
+
+function isBuildAsset(requestUrl) {
+  return requestUrl.pathname.startsWith('/assets/');
+}
+
+function isApiRequest(requestUrl) {
+  return requestUrl.pathname.startsWith('/api/');
+}
+
+async function seedOfflineHtml() {
+  const cache = await caches.open(HTML_CACHE);
+  const response = await fetch(new Request(OFFLINE_HTML_URL, { cache: 'no-store' }));
+
+  if (response.ok) {
+    await cache.put(OFFLINE_HTML_URL, response);
+  }
+}
+
+async function networkFirstHtml(request) {
+  const cache = await caches.open(HTML_CACHE);
+
+  try {
+    const freshRequest = new Request(request, { cache: 'no-store' });
+    const response = await fetch(freshRequest);
+
+    if (response.ok) {
+      await cache.put(OFFLINE_HTML_URL, response.clone());
+    }
+
+    return response;
+  } catch {
+    const cachedResponse = await cache.match(OFFLINE_HTML_URL);
+
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+
+    return new Response('Offline - Please check your connection', {
+      status: 503,
+      statusText: 'Service Unavailable',
+      headers: new Headers({
+        'Content-Type': 'text/plain',
+      }),
+    });
+  }
+}
+
+async function cacheFirstAsset(request) {
+  const cachedResponse = await caches.match(request);
+
+  if (cachedResponse) {
+    return cachedResponse;
+  }
+
+  const response = await fetch(request);
+
+  if (response.ok) {
+    const cache = await caches.open(ASSET_CACHE);
+    await cache.put(request, response.clone());
+  }
+
+  return response;
+}
+
 self.addEventListener('fetch', (event) => {
-  // Skip cross-origin requests
-  if (!event.request.url.startsWith(self.location.origin)) {
+  const { request } = event;
+
+  if (request.method !== 'GET') {
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then((response) => {
-      if (response) {
-        return response;
-      }
+  const requestUrl = new URL(request.url);
 
-      return fetch(event.request).then((response) => {
-        // Don't cache non-successful responses
-        if (!response || response.status !== 200 || response.type === 'error') {
-          return response;
-        }
+  if (!isSameOrigin(requestUrl)) {
+    return;
+  }
 
-        // Clone the response
-        const responseToCache = response.clone();
+  if (isApiRequest(requestUrl)) {
+    return;
+  }
 
-        // Cache successful responses
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
+  if (isHtmlShellRequest(request, requestUrl)) {
+    event.respondWith(networkFirstHtml(request));
+    return;
+  }
 
-        return response;
-      });
-    }).catch(() => {
-      // Return a fallback response if offline
-      return new Response('Offline - Please check your connection', {
-        status: 503,
-        statusText: 'Service Unavailable',
-        headers: new Headers({
-          'Content-Type': 'text/plain'
-        })
-      });
-    })
-  );
+  if (isBuildAsset(requestUrl)) {
+    event.respondWith(cacheFirstAsset(request));
+  }
 });
