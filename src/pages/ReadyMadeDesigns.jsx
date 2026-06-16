@@ -11,6 +11,10 @@ export default function ReadyMadeDesigns({ onBack }) {
   const [status, setStatus] = useState('loading');
   const [message, setMessage] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [selectedQuantity, setSelectedQuantity] = useState(1);
+  const [cartItems, setCartItems] = useState([]);
+  const [viewMode, setViewMode] = useState('browse');
+  const [checkoutMessage, setCheckoutMessage] = useState('');
 
   useEffect(() => {
     let isCurrent = true;
@@ -58,9 +62,79 @@ export default function ReadyMadeDesigns({ onBack }) {
   const featuredTemplates = filteredTemplates.filter(template => template.featured);
   const standardTemplates = filteredTemplates.filter(template => !template.featured);
   const hasTemplates = filteredTemplates.length > 0;
+  const totalQuantity = cartItems.reduce((total, item) => total + item.quantity, 0);
 
   const handleSelectTemplate = (template) => {
     setSelectedTemplate(template);
+    setSelectedQuantity(1);
+    setCheckoutMessage('');
+    setViewMode('detail');
+  };
+
+  const handleQuantityChange = (nextQuantity) => {
+    setSelectedQuantity(Math.max(1, nextQuantity));
+  };
+
+  const handleAddToOrder = () => {
+    if (!selectedTemplate) {
+      return;
+    }
+
+    setCartItems(prevItems => {
+      const existingItem = prevItems.find(item => item.id === selectedTemplate.id);
+
+      if (existingItem) {
+        return prevItems.map(item => (
+          item.id === selectedTemplate.id
+            ? { ...item, quantity: item.quantity + selectedQuantity }
+            : item
+        ));
+      }
+
+      return [
+        ...prevItems,
+        {
+          id: selectedTemplate.id,
+          templateNumber: selectedTemplate.templateNumber,
+          title: selectedTemplate.title,
+          imageUrl: selectedTemplate.imageUrl,
+          quantity: selectedQuantity,
+        },
+      ];
+    });
+    setViewMode('browse');
+    setSelectedTemplate(null);
+    setSelectedQuantity(1);
+  };
+
+  const handleUpdateCartQuantity = (templateId, nextQuantity) => {
+    if (nextQuantity < 1) {
+      setCartItems(prevItems => prevItems.filter(item => item.id !== templateId));
+      return;
+    }
+
+    setCartItems(prevItems => prevItems.map(item => (
+      item.id === templateId ? { ...item, quantity: nextQuantity } : item
+    )));
+  };
+
+  const handleRemoveCartItem = (templateId) => {
+    setCartItems(prevItems => prevItems.filter(item => item.id !== templateId));
+  };
+
+  const handleContinueShopping = () => {
+    setCheckoutMessage('');
+    setViewMode('browse');
+  };
+
+  const handleViewOrder = () => {
+    setCheckoutMessage('');
+    setSelectedTemplate(null);
+    setViewMode('review');
+  };
+
+  const handlePlaceholderCheckout = () => {
+    setCheckoutMessage('Ready-made order submission coming next.');
   };
 
   const renderTemplateCard = (template) => (
@@ -81,6 +155,139 @@ export default function ReadyMadeDesigns({ onBack }) {
     </article>
   );
 
+  if (viewMode === 'review') {
+    return (
+      <div className="ready-made-screen">
+        <div className="ready-made-content ready-review-content">
+          <header className="ready-made-header">
+            <button type="button" className="back-button ready-back-button" onClick={handleContinueShopping}>
+              Continue Shopping
+            </button>
+            <div>
+              <h1>Ready-Made Order</h1>
+              <p>{totalQuantity} total magnets</p>
+            </div>
+          </header>
+
+          {cartItems.length === 0 ? (
+            <div className="ready-made-message">
+              No ready-made designs have been added yet.
+            </div>
+          ) : (
+            <div className="ready-order-list">
+              {cartItems.map(item => (
+                <article className="ready-order-row" key={item.id}>
+                  <img src={item.imageUrl} alt={item.title} />
+                  <div>
+                    <strong>
+                      {item.templateNumber} {item.title} x {item.quantity}
+                    </strong>
+                    <span>{item.templateNumber}</span>
+                  </div>
+                  <div className="cart-quantity-controls" aria-label={`${item.title} quantity`}>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateCartQuantity(item.id, item.quantity - 1)}
+                    >
+                      -
+                    </button>
+                    <span>{item.quantity}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateCartQuantity(item.id, item.quantity + 1)}
+                    >
+                      +
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    className="remove-template-button"
+                    onClick={() => handleRemoveCartItem(item.id)}
+                  >
+                    Remove
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+
+          {checkoutMessage && (
+            <div className="template-placeholder-message" role="status">
+              {checkoutMessage}
+            </div>
+          )}
+
+          <div className="ready-order-actions">
+            <button type="button" className="back-button" onClick={handleContinueShopping}>
+              Continue Shopping
+            </button>
+            <button
+              type="button"
+              className="ready-primary-button"
+              onClick={handlePlaceholderCheckout}
+              disabled={cartItems.length === 0}
+            >
+              Checkout
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (viewMode === 'detail' && selectedTemplate) {
+    return (
+      <div className="ready-made-screen">
+        <div className="ready-made-content ready-detail-content">
+          <header className="ready-made-header">
+            <button type="button" className="back-button ready-back-button" onClick={handleContinueShopping}>
+              Continue Shopping
+            </button>
+            <div>
+              <h1>{selectedTemplate.title}</h1>
+              <p>{selectedTemplate.templateNumber}</p>
+            </div>
+          </header>
+
+          <section className="ready-template-detail">
+            <img src={selectedTemplate.imageUrl} alt={selectedTemplate.title} />
+            <div className="ready-template-detail-panel">
+              <span className="detail-template-number">{selectedTemplate.templateNumber}</span>
+              <h2>{selectedTemplate.title}</h2>
+              <div className="detail-quantity-control">
+                <span>Quantity</span>
+                <div className="cart-quantity-controls">
+                  <button
+                    type="button"
+                    onClick={() => handleQuantityChange(selectedQuantity - 1)}
+                    disabled={selectedQuantity === 1}
+                  >
+                    -
+                  </button>
+                  <span>{selectedQuantity}</span>
+                  <button type="button" onClick={() => handleQuantityChange(selectedQuantity + 1)}>
+                    +
+                  </button>
+                </div>
+              </div>
+              <button type="button" className="ready-primary-button" onClick={handleAddToOrder}>
+                Add To Order
+              </button>
+              <button
+                type="button"
+                className="ready-secondary-button"
+                onClick={handleViewOrder}
+                disabled={cartItems.length === 0}
+              >
+                View Order ({totalQuantity})
+              </button>
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="ready-made-screen">
       <div className="ready-made-content">
@@ -92,6 +299,14 @@ export default function ReadyMadeDesigns({ onBack }) {
             <h1>Ready-Made Designs</h1>
             <p>Browse pre-made magnet designs.</p>
           </div>
+          <button
+            type="button"
+            className="ready-cart-button"
+            onClick={handleViewOrder}
+            disabled={cartItems.length === 0}
+          >
+            View Order ({totalQuantity})
+          </button>
         </header>
 
         <div className="category-filter-bar" aria-label="Ready-made design categories">
@@ -120,12 +335,6 @@ export default function ReadyMadeDesigns({ onBack }) {
             </button>
           ))}
         </div>
-
-        {selectedTemplate && (
-          <div className="template-placeholder-message" role="status">
-            Template ordering coming next.
-          </div>
-        )}
 
         {status === 'loading' && (
           <div className="ready-made-message" role="status">
