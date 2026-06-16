@@ -49,17 +49,6 @@ export default function WelcomeScreen({ onNext, onBrowseReadyMade }) {
           </button>
         </div>
 
-        <ol className="process-list">
-          <li>Choose your magnet shape</li>
-          <li>Upload and crop your photo</li>
-          <li>Submit your order</li>
-          <li>Jennifer will contact you to confirm pickup and payment</li>
-        </ol>
-
-        <p className="payment-note">
-          No online payment is required. Jennifer will contact you after submission to confirm your order.
-        </p>
-
         <a className="settings-link" href="#settings">
           Jennifer Settings
         </a>
