@@ -32,6 +32,35 @@
   line-height: 1.35;
 }
 
+.ready-made-browse-header {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.ready-made-title-block {
+  display: grid;
+  gap: 6px;
+}
+
+.ready-back-link {
+  width: fit-content;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--color-muted);
+  font-size: 14px;
+  font-weight: 800;
+  padding: 0;
+  text-align: left;
+}
+
+.ready-back-link:hover,
+.ready-back-link:active {
+  color: var(--color-primary);
+  transform: none;
+}
+
 .ready-back-button {
   width: auto;
   min-width: 96px;
@@ -518,6 +547,10 @@
 
   .ready-made-header {
     grid-template-columns: 1fr;
+  }
+
+  .ready-made-browse-header {
+    align-items: start;
   }
 
   .ready-made-header h1 {

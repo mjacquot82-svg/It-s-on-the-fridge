@@ -670,11 +670,11 @@ export default function ReadyMadeDesigns({ onBack }) {
   return (
     <div className="ready-made-screen">
       <div className="ready-made-content">
-        <header className="ready-made-header">
-          <button type="button" className="back-button ready-back-button" onClick={onBack}>
-            Back
-          </button>
-          <div>
+        <header className="ready-made-header ready-made-browse-header">
+          <div className="ready-made-title-block">
+            <button type="button" className="ready-back-link" onClick={onBack}>
+              ← Back
+            </button>
             <h1>Ready-Made Designs</h1>
             <p>Browse pre-made magnet designs.</p>
           </div>
