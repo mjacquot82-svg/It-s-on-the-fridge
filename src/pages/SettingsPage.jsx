@@ -21,6 +21,7 @@ const emptyCategoryForm = {
 const emptyTemplateForm = {
   title: '',
   categoryId: '',
+  shape: 'rectangle',
   visible: true,
   featured: false,
 };
@@ -461,6 +462,19 @@ export default function SettingsPage({ onExit }) {
                       required
                     />
                   </div>
+                  <div className="form-group">
+                    <label htmlFor="templateShape">Magnet Shape</label>
+                    <select
+                      id="templateShape"
+                      name="shape"
+                      value={templateForm.shape}
+                      onChange={handleTemplateChange}
+                      required
+                    >
+                      <option value="rectangle">Rectangle</option>
+                      <option value="round">Round</option>
+                    </select>
+                  </div>
                   <div className="template-toggle-row">
                     <div className="settings-toggle template-toggle">
                       <input
@@ -524,6 +538,7 @@ export default function SettingsPage({ onExit }) {
                         </div>
                         <h3>{template.title}</h3>
                         <p>{template.categoryName || 'Uncategorized'}</p>
+                        <p>{template.shape === 'round' ? 'Round Magnet' : 'Rectangle Magnet'}</p>
                         <div className="template-status-row">
                           <span className={template.visible ? 'status-pill is-visible' : 'status-pill'}>
                             {template.visible ? 'Visible' : 'Hidden'}

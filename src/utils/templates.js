@@ -27,6 +27,7 @@ function normalizeTemplate(row) {
     categoryId: row.category_id,
     categoryName: row.template_categories?.name || '',
     imageUrl: row.image_url,
+    shape: row.shape === 'round' ? 'round' : 'rectangle',
     visible: row.visible,
     featured: row.featured,
     createdAt: row.created_at,
@@ -62,7 +63,7 @@ export async function fetchCustomerTemplateLibrary() {
   categoriesUrl.searchParams.set('order', 'sort_order.asc,name.asc');
 
   const templatesUrl = new URL(`${baseUrl}/rest/v1/magnet_templates`);
-  templatesUrl.searchParams.set('select', 'id,template_number,title,category_id,image_url,visible,featured,created_at,template_categories(name)');
+  templatesUrl.searchParams.set('select', 'id,template_number,title,category_id,image_url,shape,visible,featured,created_at,template_categories(name)');
   templatesUrl.searchParams.set('visible', 'eq.true');
   templatesUrl.searchParams.set('order', 'featured.desc,created_at.desc');
 

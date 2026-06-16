@@ -608,9 +608,6 @@ export default function ReadyMadeDesigns({ onBack }) {
       <div className="ready-made-screen">
         <div className="ready-made-content ready-detail-content">
           <header className="ready-made-header">
-            <button type="button" className="back-button ready-back-button" onClick={handleContinueShopping}>
-              Continue Shopping
-            </button>
             <div>
               <h1>{selectedTemplate.title}</h1>
               <p>Preview Your Magnet</p>
@@ -656,6 +653,9 @@ export default function ReadyMadeDesigns({ onBack }) {
                 disabled={cartItems.length === 0}
               >
                 View Order ({totalQuantity})
+              </button>
+              <button type="button" className="ready-gallery-back-button" onClick={handleContinueShopping}>
+                ← Back to Templates
               </button>
             </div>
           </section>

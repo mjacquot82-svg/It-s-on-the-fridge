@@ -33,6 +33,10 @@ function normalizeSortOrder(value) {
   return Number.isInteger(sortOrder) ? sortOrder : 0;
 }
 
+function normalizeTemplateShape(value) {
+  return value === 'round' ? 'round' : 'rectangle';
+}
+
 function getRequiredString(value, fieldName) {
   const text = String(value || '').trim();
 
@@ -91,6 +95,7 @@ function normalizeTemplate(row) {
     categoryId: row.category_id,
     categoryName: row.template_categories?.name || '',
     imageUrl: row.image_url,
+    shape: normalizeTemplateShape(row.shape),
     visible: row.visible,
     featured: row.featured,
     createdAt: row.created_at,
@@ -116,7 +121,7 @@ async function loadTemplateLibrary(supabaseUrl, serviceRoleKey) {
   categoriesUrl.searchParams.set('order', 'sort_order.asc,name.asc');
 
   const templatesUrl = new URL(`${baseUrl}/rest/v1/${TEMPLATES_TABLE}`);
-  templatesUrl.searchParams.set('select', 'id,template_number,title,category_id,image_url,visible,featured,created_at,template_categories(name)');
+  templatesUrl.searchParams.set('select', 'id,template_number,title,category_id,image_url,shape,visible,featured,created_at,template_categories(name)');
   templatesUrl.searchParams.set('order', 'created_at.desc');
 
   const [categories, templates] = await Promise.all([
@@ -177,7 +182,7 @@ async function uploadTemplateImage(supabaseUrl, serviceRoleKey, body) {
 async function createTemplate(supabaseUrl, serviceRoleKey, body) {
   const imageUrl = await uploadTemplateImage(supabaseUrl, serviceRoleKey, body);
   const baseUrl = supabaseUrl.replace(/\/$/, '');
-  const endpoint = `${baseUrl}/rest/v1/${TEMPLATES_TABLE}?select=id,template_number,title,category_id,image_url,visible,featured,created_at,template_categories(name)`;
+  const endpoint = `${baseUrl}/rest/v1/${TEMPLATES_TABLE}?select=id,template_number,title,category_id,image_url,shape,visible,featured,created_at,template_categories(name)`;
   const rows = await fetchJson(endpoint, {
     method: 'POST',
     headers: {
@@ -189,6 +194,7 @@ async function createTemplate(supabaseUrl, serviceRoleKey, body) {
       title: getRequiredString(body.title, 'Template title'),
       category_id: body.categoryId || null,
       image_url: imageUrl,
+      shape: normalizeTemplateShape(body.shape),
       visible: normalizeBoolean(body.visible, true),
       featured: normalizeBoolean(body.featured, false),
     }),
@@ -209,6 +215,10 @@ async function updateTemplate(supabaseUrl, serviceRoleKey, body) {
     patch.featured = body.featured;
   }
 
+  if (typeof body.shape === 'string') {
+    patch.shape = normalizeTemplateShape(body.shape);
+  }
+
   if (Object.keys(patch).length === 0) {
     throw new Error('No template changes were provided.');
   }
@@ -216,7 +226,7 @@ async function updateTemplate(supabaseUrl, serviceRoleKey, body) {
   const baseUrl = supabaseUrl.replace(/\/$/, '');
   const endpoint = new URL(`${baseUrl}/rest/v1/${TEMPLATES_TABLE}`);
   endpoint.searchParams.set('id', `eq.${id}`);
-  endpoint.searchParams.set('select', 'id,template_number,title,category_id,image_url,visible,featured,created_at,template_categories(name)');
+  endpoint.searchParams.set('select', 'id,template_number,title,category_id,image_url,shape,visible,featured,created_at,template_categories(name)');
 
   const rows = await fetchJson(endpoint, {
     method: 'PATCH',

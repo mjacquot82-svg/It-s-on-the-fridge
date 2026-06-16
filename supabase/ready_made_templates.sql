@@ -13,11 +13,32 @@ create table if not exists public.magnet_templates (
   title text not null,
   category_id uuid references public.template_categories(id) on delete set null,
   image_url text not null,
+  shape text not null default 'rectangle' check (shape in ('rectangle', 'round')),
   visible boolean not null default true,
   featured boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.magnet_templates
+add column if not exists shape text not null default 'rectangle';
+
+alter table public.magnet_templates
+alter column shape set default 'rectangle';
+
+update public.magnet_templates
+set shape = 'rectangle'
+where shape is null or shape not in ('rectangle', 'round');
+
+alter table public.magnet_templates
+alter column shape set not null;
+
+alter table public.magnet_templates
+drop constraint if exists magnet_templates_shape_check;
+
+alter table public.magnet_templates
+add constraint magnet_templates_shape_check
+check (shape in ('rectangle', 'round'));
 
 create sequence if not exists public.magnet_template_number_seq;
 
