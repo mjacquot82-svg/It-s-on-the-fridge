@@ -42,6 +42,8 @@ export default function SettingsPage({ onExit }) {
   const [templateImageFile, setTemplateImageFile] = useState(null);
   const [createdTemplateNumber, setCreatedTemplateNumber] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isCategoryManagementOpen, setIsCategoryManagementOpen] = useState(false);
 
   const filteredTemplates = useMemo(() => {
     if (categoryFilter === 'all') {
@@ -137,6 +139,17 @@ export default function SettingsPage({ onExit }) {
     }));
   };
 
+  const handleOpenCategoryModal = () => {
+    setCategoryForm(emptyCategoryForm);
+    setTemplateMessage('');
+    setIsCategoryModalOpen(true);
+  };
+
+  const handleCloseCategoryModal = () => {
+    setCategoryForm(emptyCategoryForm);
+    setIsCategoryModalOpen(false);
+  };
+
   const handleCreateCategory = async (event) => {
     event.preventDefault();
     setTemplateStatus('saving');
@@ -158,6 +171,11 @@ export default function SettingsPage({ onExit }) {
         }),
       }));
       setCategoryForm(emptyCategoryForm);
+      setTemplateForm(prev => ({
+        ...prev,
+        categoryId: category.id,
+      }));
+      setIsCategoryModalOpen(false);
       setTemplateStatus('ready');
       setTemplateMessage('Category created.');
     } catch (error) {
@@ -170,6 +188,12 @@ export default function SettingsPage({ onExit }) {
     const { name, value, type, checked } = event.target;
     setTemplateMessage('');
     setCreatedTemplateNumber('');
+
+    if (name === 'categoryId' && value === '__create__') {
+      handleOpenCategoryModal();
+      return;
+    }
+
     setTemplateForm(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
@@ -367,63 +391,8 @@ export default function SettingsPage({ onExit }) {
                 </div>
               )}
 
-              <div className="template-admin-grid">
-                <form className="settings-form template-panel" onSubmit={handleCreateCategory}>
-                  <h3>Categories</h3>
-                  <div className="form-group">
-                    <label htmlFor="categoryName">Category Name</label>
-                    <input
-                      id="categoryName"
-                      name="name"
-                      value={categoryForm.name}
-                      onChange={handleCategoryChange}
-                      required
-                    />
-                  </div>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label htmlFor="categorySortOrder">Sort Order</label>
-                      <input
-                        id="categorySortOrder"
-                        name="sortOrder"
-                        type="number"
-                        step="1"
-                        value={categoryForm.sortOrder}
-                        onChange={handleCategoryChange}
-                      />
-                    </div>
-                    <div className="settings-toggle template-toggle">
-                      <input
-                        id="categoryVisible"
-                        name="visible"
-                        type="checkbox"
-                        checked={categoryForm.visible}
-                        onChange={handleCategoryChange}
-                      />
-                      <label htmlFor="categoryVisible">Visible</label>
-                    </div>
-                  </div>
-                  <button type="submit" className="next-button" disabled={templateStatus === 'saving'}>
-                    Create Category
-                  </button>
-
-                  <div className="category-list" aria-label="Template categories">
-                    {templateLibrary.categories.length === 0 ? (
-                      <p>No categories yet.</p>
-                    ) : (
-                      templateLibrary.categories.map(category => (
-                        <div className="category-row" key={category.id}>
-                          <span>{category.name}</span>
-                          <small>
-                            Sort {category.sortOrder} · {category.visible ? 'Visible' : 'Hidden'}
-                          </small>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </form>
-
-                <form className="settings-form template-panel" onSubmit={handleCreateTemplate}>
+              <div className="template-admin-workflow">
+                <form className="settings-form template-panel upload-template-panel" onSubmit={handleCreateTemplate}>
                   <h3>Upload Template</h3>
                   <div className="form-group">
                     <label htmlFor="templateTitle">Title</label>
@@ -450,6 +419,7 @@ export default function SettingsPage({ onExit }) {
                           {category.name}
                         </option>
                       ))}
+                      <option value="__create__">+ Create New Category</option>
                     </select>
                   </div>
                   <div className="form-group">
@@ -501,7 +471,128 @@ export default function SettingsPage({ onExit }) {
                     {templateStatus === 'saving' ? 'Saving...' : 'Upload Template'}
                   </button>
                 </form>
+
+                <div className="category-management-wrap">
+                  <button
+                    type="button"
+                    className="manage-categories-button"
+                    onClick={() => setIsCategoryManagementOpen(prev => !prev)}
+                  >
+                    {isCategoryManagementOpen ? 'Hide Categories' : 'Manage Categories'}
+                  </button>
+
+                  {isCategoryManagementOpen && (
+                    <form className="settings-form template-panel category-management-panel" onSubmit={handleCreateCategory}>
+                      <h3>Categories</h3>
+                      <div className="form-group">
+                        <label htmlFor="categoryName">Category Name</label>
+                        <input
+                          id="categoryName"
+                          name="name"
+                          value={categoryForm.name}
+                          onChange={handleCategoryChange}
+                          required
+                        />
+                      </div>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label htmlFor="categorySortOrder">Sort Order</label>
+                          <input
+                            id="categorySortOrder"
+                            name="sortOrder"
+                            type="number"
+                            step="1"
+                            value={categoryForm.sortOrder}
+                            onChange={handleCategoryChange}
+                          />
+                        </div>
+                        <div className="settings-toggle template-toggle">
+                          <input
+                            id="categoryVisible"
+                            name="visible"
+                            type="checkbox"
+                            checked={categoryForm.visible}
+                            onChange={handleCategoryChange}
+                          />
+                          <label htmlFor="categoryVisible">Visible</label>
+                        </div>
+                      </div>
+                      <button type="submit" className="next-button" disabled={templateStatus === 'saving'}>
+                        Create Category
+                      </button>
+
+                      <div className="category-list" aria-label="Template categories">
+                        {templateLibrary.categories.length === 0 ? (
+                          <p>No categories yet.</p>
+                        ) : (
+                          templateLibrary.categories.map(category => (
+                            <div className="category-row" key={category.id}>
+                              <span>{category.name}</span>
+                              <small>
+                                Sort {category.sortOrder} · {category.visible ? 'Visible' : 'Hidden'}
+                              </small>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </form>
+                  )}
+                </div>
               </div>
+
+              {isCategoryModalOpen && (
+                <div className="settings-modal-backdrop" role="presentation">
+                  <form className="settings-form settings-modal" onSubmit={handleCreateCategory}>
+                    <div className="settings-modal-header">
+                      <h3>Create New Category</h3>
+                      <button type="button" className="modal-close-button" onClick={handleCloseCategoryModal}>
+                        X
+                      </button>
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="modalCategoryName">Category Name</label>
+                      <input
+                        id="modalCategoryName"
+                        name="name"
+                        value={categoryForm.name}
+                        onChange={handleCategoryChange}
+                        required
+                      />
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label htmlFor="modalCategorySortOrder">Sort Order</label>
+                        <input
+                          id="modalCategorySortOrder"
+                          name="sortOrder"
+                          type="number"
+                          step="1"
+                          value={categoryForm.sortOrder}
+                          onChange={handleCategoryChange}
+                        />
+                      </div>
+                      <div className="settings-toggle template-toggle">
+                        <input
+                          id="modalCategoryVisible"
+                          name="visible"
+                          type="checkbox"
+                          checked={categoryForm.visible}
+                          onChange={handleCategoryChange}
+                        />
+                        <label htmlFor="modalCategoryVisible">Visible</label>
+                      </div>
+                    </div>
+                    <div className="settings-modal-actions">
+                      <button type="button" className="back-button" onClick={handleCloseCategoryModal}>
+                        Cancel
+                      </button>
+                      <button type="submit" className="next-button" disabled={templateStatus === 'saving'}>
+                        {templateStatus === 'saving' ? 'Creating...' : 'Create Category'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
 
               <div className="template-library-toolbar">
                 <div className="form-group">
