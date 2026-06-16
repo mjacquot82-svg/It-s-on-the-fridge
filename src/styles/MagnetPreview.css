@@ -74,11 +74,23 @@
 
 .magnet-preview-round {
   --magnet-radius: 50%;
+  width: min(100%, 86%);
+  margin-inline: auto;
 }
 
 .magnet-preview-round .magnet-preview-shadow,
 .magnet-preview-round .magnet-preview-face {
   border-radius: 50%;
+}
+
+.magnet-preview-round::before {
+  content: "";
+  position: absolute;
+  inset: -8%;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px dashed rgba(11, 48, 72, 0.16);
+  border-radius: 50%;
+  z-index: -2;
 }
 
 @media (max-width: 640px) {

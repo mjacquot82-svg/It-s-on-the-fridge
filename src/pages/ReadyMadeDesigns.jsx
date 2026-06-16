@@ -328,7 +328,7 @@ export default function ReadyMadeDesigns({ onBack }) {
   };
 
   const renderTemplateCard = (template) => (
-    <article className="ready-template-card" key={template.id}>
+    <article className={`ready-template-card ready-template-card-${getTemplateShape(template)}`} key={template.id}>
       <button
         type="button"
         className="ready-template-button"
@@ -346,6 +346,9 @@ export default function ReadyMadeDesigns({ onBack }) {
       <div className="ready-template-body">
         <h3>{template.title}</h3>
         <p>Template #{template.templateNumber}</p>
+        <span className="shape-badge">
+          {getTemplateShape(template) === 'round' ? 'Round Magnet' : 'Rectangle Magnet'}
+        </span>
       </div>
     </article>
   );

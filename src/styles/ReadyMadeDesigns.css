@@ -157,6 +157,11 @@
   overflow: hidden;
 }
 
+.ready-template-card-round .ready-template-button {
+  background:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.95) 0%, rgba(238, 248, 246, 0.94) 44%, rgba(223, 243, 239, 0.88) 100%);
+}
+
 .ready-template-button {
   width: 100%;
   display: block;
@@ -210,6 +215,27 @@
   color: var(--color-muted);
   font-size: 13px;
   font-weight: 800;
+}
+
+.shape-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  background: var(--color-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  margin-top: 10px;
+  padding: 7px 9px;
+}
+
+.ready-template-card-round .shape-badge {
+  background: #fff1f7;
+  border-color: rgba(232, 61, 140, 0.24);
+  color: var(--color-accent-pink);
 }
 
 .ready-detail-content,
