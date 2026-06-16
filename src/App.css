@@ -155,7 +155,8 @@ input, textarea, select {
 .adjust-photo-screen,
 .order-details-screen,
 .review-order-screen,
-.order-submitted-screen {
+.order-submitted-screen,
+.ready-made-screen {
   min-height: 100vh;
   min-height: 100dvh;
   padding-bottom: max(24px, calc(20px + env(safe-area-inset-bottom, 0px)));
@@ -175,7 +176,8 @@ input, textarea, select {
   .adjust-photo-screen,
   .order-details-screen,
   .review-order-screen,
-  .order-submitted-screen {
+    .order-submitted-screen,
+    .ready-made-screen {
     align-items: flex-start;
     padding-top: 16px;
     padding-bottom: max(28px, calc(24px + env(safe-area-inset-bottom, 0px)));

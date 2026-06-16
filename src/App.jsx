@@ -9,12 +9,14 @@ import OrderDetails from './pages/OrderDetails';
 import ReviewOrder from './pages/ReviewOrder';
 import OrderSubmitted from './pages/OrderSubmitted';
 import SettingsPage from './pages/SettingsPage';
+import ReadyMadeDesigns from './pages/ReadyMadeDesigns';
 import BuildVersion from './components/BuildVersion';
 import './App.css';
 
 function AppContent() {
   const { resetOrder } = useOrder();
   const [isSettingsOpen, setIsSettingsOpen] = useState(() => window.location.hash === '#settings');
+  const [isReadyMadeOpen, setIsReadyMadeOpen] = useState(false);
   const pages = useMemo(() => [
     { component: WelcomeScreen, title: 'Welcome' },
     { component: MagnetTypeSelection, title: 'Select Type' },
@@ -55,7 +57,11 @@ function AppContent() {
     setCurrentPage(0);
   };
 
-  const pageProps = { onNext: handleNext, onBack: handleBack };
+  const pageProps = {
+    onNext: handleNext,
+    onBack: handleBack,
+    onBrowseReadyMade: () => setIsReadyMadeOpen(true),
+  };
 
   if (isSettingsOpen) {
     return (
@@ -67,6 +73,14 @@ function AppContent() {
           }}
         />
         <BuildVersion />
+      </div>
+    );
+  }
+
+  if (isReadyMadeOpen) {
+    return (
+      <div className="app">
+        <ReadyMadeDesigns onBack={() => setIsReadyMadeOpen(false)} />
       </div>
     );
   }

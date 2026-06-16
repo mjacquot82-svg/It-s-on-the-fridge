@@ -3,7 +3,7 @@ import { useOrder } from '../context/useOrder';
 import { formatCurrency } from '../utils/pricing';
 import '../styles/WelcomeScreen.css';
 
-export default function WelcomeScreen({ onNext }) {
+export default function WelcomeScreen({ onNext, onBrowseReadyMade }) {
   const { pricingSettings } = useOrder();
 
   return (
@@ -38,6 +38,17 @@ export default function WelcomeScreen({ onNext }) {
           </section>
         )}
         
+        <div className="welcome-options">
+          <button className="welcome-option-card" type="button" onClick={onNext}>
+            <span>Create Your Own Magnet</span>
+            <small>Upload your own photo</small>
+          </button>
+          <button className="welcome-option-card" type="button" onClick={onBrowseReadyMade}>
+            <span>Shop Ready-Made Designs</span>
+            <small>Browse pre-made magnet designs</small>
+          </button>
+        </div>
+
         <ol className="process-list">
           <li>Choose your magnet shape</li>
           <li>Upload and crop your photo</li>
@@ -48,10 +59,6 @@ export default function WelcomeScreen({ onNext }) {
         <p className="payment-note">
           No online payment is required. Jennifer will contact you after submission to confirm your order.
         </p>
-
-        <button className="cta-button" onClick={onNext}>
-          Start Your Magnet
-        </button>
 
         <a className="settings-link" href="#settings">
           Jennifer Settings
