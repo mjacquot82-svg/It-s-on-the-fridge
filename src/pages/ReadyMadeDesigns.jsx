@@ -1,9 +1,54 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   emptyCustomerTemplateLibrary,
   fetchCustomerTemplateLibrary,
 } from '../utils/templates';
 import '../styles/ReadyMadeDesigns.css';
+
+const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
+
+const emptyCustomerInfo = {
+  name: '',
+  phone: '',
+  email: '',
+};
+
+function getTotalQuantity(cartItems) {
+  return cartItems.reduce((total, item) => total + item.quantity, 0);
+}
+
+function createReadyMadeOrder(cartItems, customerInfo) {
+  return {
+    id: Date.now(),
+    orderType: 'ready-made',
+    submittedAt: new Date().toISOString(),
+    customerInfo,
+    readyMadeItems: cartItems.map(item => ({
+      templateNumber: item.templateNumber,
+      title: item.title,
+      quantity: item.quantity,
+    })),
+    totalQuantity: getTotalQuantity(cartItems),
+  };
+}
+
+async function submitReadyMadeOrder(order, turnstileToken) {
+  const response = await fetch('/api/send-order-email', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ order, turnstileToken }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.error || 'Unable to send your order. Please try again.');
+  }
+
+  return data;
+}
 
 export default function ReadyMadeDesigns({ onBack }) {
   const [templateLibrary, setTemplateLibrary] = useState(emptyCustomerTemplateLibrary);
@@ -14,7 +59,15 @@ export default function ReadyMadeDesigns({ onBack }) {
   const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [cartItems, setCartItems] = useState([]);
   const [viewMode, setViewMode] = useState('browse');
-  const [checkoutMessage, setCheckoutMessage] = useState('');
+  const [customerInfo, setCustomerInfo] = useState(emptyCustomerInfo);
+  const [customerErrors, setCustomerErrors] = useState({});
+  const [submitError, setSubmitError] = useState('');
+  const [submittedOrder, setSubmittedOrder] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaReady, setCaptchaReady] = useState(!turnstileSiteKey);
+  const captchaRef = useRef(null);
+  const widgetIdRef = useRef(null);
 
   useEffect(() => {
     let isCurrent = true;
@@ -45,6 +98,56 @@ export default function ReadyMadeDesigns({ onBack }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (viewMode !== 'review' || !turnstileSiteKey) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    let attempts = 0;
+
+    const renderTurnstile = () => {
+      if (cancelled || widgetIdRef.current || !captchaRef.current) {
+        return;
+      }
+
+      if (!window.turnstile) {
+        attempts += 1;
+        if (attempts <= 50) {
+          window.setTimeout(renderTurnstile, 100);
+        }
+        return;
+      }
+
+      widgetIdRef.current = window.turnstile.render(captchaRef.current, {
+        sitekey: turnstileSiteKey,
+        callback: (token) => {
+          setCaptchaToken(token);
+          setCaptchaReady(true);
+        },
+        'expired-callback': () => {
+          setCaptchaToken('');
+          setCaptchaReady(false);
+        },
+        'error-callback': () => {
+          setCaptchaToken('');
+          setCaptchaReady(false);
+          setSubmitError('We could not verify this order. Please refresh and try again.');
+        },
+      });
+    };
+
+    renderTurnstile();
+
+    return () => {
+      cancelled = true;
+      if (window.turnstile && widgetIdRef.current) {
+        window.turnstile.remove(widgetIdRef.current);
+        widgetIdRef.current = null;
+      }
+    };
+  }, [viewMode]);
+
   const filteredTemplates = useMemo(() => {
     const visibleTemplates = templateLibrary.templates.filter(template => template.visible);
 
@@ -62,12 +165,20 @@ export default function ReadyMadeDesigns({ onBack }) {
   const featuredTemplates = filteredTemplates.filter(template => template.featured);
   const standardTemplates = filteredTemplates.filter(template => !template.featured);
   const hasTemplates = filteredTemplates.length > 0;
-  const totalQuantity = cartItems.reduce((total, item) => total + item.quantity, 0);
+  const totalQuantity = getTotalQuantity(cartItems);
+
+  const resetCaptcha = () => {
+    if (window.turnstile && widgetIdRef.current) {
+      window.turnstile.reset(widgetIdRef.current);
+    }
+    setCaptchaToken('');
+    setCaptchaReady(!turnstileSiteKey);
+  };
 
   const handleSelectTemplate = (template) => {
     setSelectedTemplate(template);
     setSelectedQuantity(1);
-    setCheckoutMessage('');
+    setSubmitError('');
     setViewMode('detail');
   };
 
@@ -123,18 +234,91 @@ export default function ReadyMadeDesigns({ onBack }) {
   };
 
   const handleContinueShopping = () => {
-    setCheckoutMessage('');
+    setSubmitError('');
     setViewMode('browse');
   };
 
-  const handleViewOrder = () => {
-    setCheckoutMessage('');
+  const handleViewCart = () => {
+    setSubmitError('');
     setSelectedTemplate(null);
-    setViewMode('review');
+    setViewMode('cart');
   };
 
-  const handlePlaceholderCheckout = () => {
-    setCheckoutMessage('Ready-made order submission coming next.');
+  const handleCustomerInfoChange = (event) => {
+    const { name, value } = event.target;
+    setCustomerInfo(prevInfo => ({ ...prevInfo, [name]: value }));
+    if (customerErrors[name]) {
+      setCustomerErrors(prevErrors => ({ ...prevErrors, [name]: '' }));
+    }
+  };
+
+  const validateCustomerInfo = () => {
+    const nextErrors = {};
+
+    if (!customerInfo.name.trim()) {
+      nextErrors.name = 'Name is required';
+    }
+
+    if (!customerInfo.phone.trim()) {
+      nextErrors.phone = 'Phone is required';
+    } else if (!/^\d{10,}$/.test(customerInfo.phone.replace(/\D/g, ''))) {
+      nextErrors.phone = 'Enter a valid phone number';
+    }
+
+    if (!customerInfo.email.trim()) {
+      nextErrors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerInfo.email)) {
+      nextErrors.email = 'Enter a valid email';
+    }
+
+    setCustomerErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  const handleReviewOrder = () => {
+    if (cartItems.length === 0) {
+      setViewMode('cart');
+      return;
+    }
+
+    if (validateCustomerInfo()) {
+      setSubmitError('');
+      resetCaptcha();
+      setViewMode('review');
+    }
+  };
+
+  const handleSubmitOrder = async () => {
+    if (turnstileSiteKey && !captchaToken) {
+      setSubmitError('Please complete the order verification before submitting.');
+      return;
+    }
+
+    const order = createReadyMadeOrder(cartItems, customerInfo);
+    setIsSubmitting(true);
+    setSubmitError('');
+
+    try {
+      const emailDelivery = await submitReadyMadeOrder(order, captchaToken || null);
+      setSubmittedOrder({ ...order, emailDelivery });
+      setCartItems([]);
+      setSelectedTemplate(null);
+      setSelectedQuantity(1);
+      setViewMode('confirmation');
+    } catch (error) {
+      setSubmitError(error.message || 'Unable to send your order. Please try again.');
+      resetCaptcha();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleStartOver = () => {
+    setCustomerInfo(emptyCustomerInfo);
+    setCustomerErrors({});
+    setSubmitError('');
+    setSubmittedOrder(null);
+    setViewMode('browse');
   };
 
   const renderTemplateCard = (template) => (
@@ -150,12 +334,216 @@ export default function ReadyMadeDesigns({ onBack }) {
       </button>
       <div className="ready-template-body">
         <h3>{template.title}</h3>
-        <p>{template.templateNumber}</p>
+        <p>Template #{template.templateNumber}</p>
       </div>
     </article>
   );
 
+  const renderOrderItem = (item, allowEditing = false) => (
+    <article className="ready-order-row" key={item.id || item.templateNumber}>
+      {item.imageUrl && <img src={item.imageUrl} alt={item.title} />}
+      <div>
+        <strong>{item.title}</strong>
+        <span>Template #{item.templateNumber}</span>
+        <span>Quantity: {item.quantity}</span>
+      </div>
+      {allowEditing && (
+        <>
+          <div className="cart-quantity-controls" aria-label={`${item.title} quantity`}>
+            <button
+              type="button"
+              onClick={() => handleUpdateCartQuantity(item.id, item.quantity - 1)}
+            >
+              -
+            </button>
+            <span>{item.quantity}</span>
+            <button
+              type="button"
+              onClick={() => handleUpdateCartQuantity(item.id, item.quantity + 1)}
+            >
+              +
+            </button>
+          </div>
+          <button
+            type="button"
+            className="remove-template-button"
+            onClick={() => handleRemoveCartItem(item.id)}
+          >
+            Remove
+          </button>
+        </>
+      )}
+    </article>
+  );
+
+  if (viewMode === 'confirmation' && submittedOrder) {
+    return (
+      <div className="ready-made-screen">
+        <div className="ready-made-content ready-confirmation-content">
+          <div className="success-icon">✓</div>
+          <h1>Thank You for Your Order!</h1>
+          <p className="ready-confirmation-message">
+            Jennifer will contact you to confirm pickup and payment.
+          </p>
+
+          <section className="ready-summary-panel">
+            <h2>Customer Details</h2>
+            <p><strong>Name:</strong> {submittedOrder.customerInfo.name}</p>
+            <p><strong>Phone:</strong> {submittedOrder.customerInfo.phone}</p>
+            <p><strong>Email:</strong> {submittedOrder.customerInfo.email}</p>
+          </section>
+
+          <section className="ready-summary-panel">
+            <h2>Ordered Templates</h2>
+            <div className="ready-order-list">
+              {submittedOrder.readyMadeItems.map(item => renderOrderItem(item))}
+            </div>
+            <p className="ready-total-line">Total Magnets: {submittedOrder.totalQuantity}</p>
+          </section>
+
+          <button type="button" className="ready-primary-button" onClick={handleStartOver}>
+            Shop More Designs
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (viewMode === 'review') {
+    return (
+      <div className="ready-made-screen">
+        <div className="ready-made-content ready-review-content">
+          <header className="ready-made-header">
+            <button type="button" className="back-button ready-back-button" onClick={() => setViewMode('customer')}>
+              Back
+            </button>
+            <div>
+              <h1>Review Ready-Made Order</h1>
+              <p>{totalQuantity} total magnets</p>
+            </div>
+          </header>
+
+          <section className="ready-summary-panel">
+            <h2>Customer</h2>
+            <p><strong>Name:</strong> {customerInfo.name}</p>
+            <p><strong>Phone:</strong> {customerInfo.phone}</p>
+            <p><strong>Email:</strong> {customerInfo.email}</p>
+          </section>
+
+          <section className="ready-summary-panel">
+            <h2>Ready-Made Order Contents</h2>
+            <div className="ready-order-list">
+              {cartItems.map(item => renderOrderItem(item))}
+            </div>
+            <p className="ready-total-line">Total Magnets: {totalQuantity}</p>
+          </section>
+
+          <p className="ready-payment-note">
+            No online payment is required. Jennifer will contact you after submission to confirm pickup and payment.
+          </p>
+
+          {submitError && (
+            <div className="ready-made-message is-error" role="alert">
+              {submitError}
+            </div>
+          )}
+
+          {turnstileSiteKey && (
+            <div className="order-verification">
+              <div ref={captchaRef} className="turnstile-widget" />
+            </div>
+          )}
+
+          <div className="ready-order-actions">
+            <button type="button" className="back-button" onClick={() => setViewMode('customer')} disabled={isSubmitting}>
+              Back
+            </button>
+            <button
+              type="button"
+              className="ready-primary-button"
+              onClick={handleSubmitOrder}
+              disabled={isSubmitting || !captchaReady}
+            >
+              {isSubmitting ? 'Sending Order...' : submitError ? 'Retry Sending Order' : 'Submit Order'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (viewMode === 'customer') {
+    return (
+      <div className="ready-made-screen">
+        <div className="ready-made-content ready-customer-content">
+          <header className="ready-made-header">
+            <button type="button" className="back-button ready-back-button" onClick={handleViewCart}>
+              Back
+            </button>
+            <div>
+              <h1>Your Information</h1>
+              <p>Jennifer will use this to confirm your ready-made order.</p>
+            </div>
+          </header>
+
+          <form className="ready-customer-form">
+            <div className="form-group">
+              <label htmlFor="readyName">Name *</label>
+              <input
+                id="readyName"
+                name="name"
+                type="text"
+                value={customerInfo.name}
+                onChange={handleCustomerInfoChange}
+                className={customerErrors.name ? 'error' : ''}
+                placeholder="Jane Smith"
+              />
+              {customerErrors.name && <span className="error-text">{customerErrors.name}</span>}
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="readyPhone">Phone *</label>
+              <input
+                id="readyPhone"
+                name="phone"
+                type="tel"
+                value={customerInfo.phone}
+                onChange={handleCustomerInfoChange}
+                className={customerErrors.phone ? 'error' : ''}
+                placeholder="(555) 123-4567"
+              />
+              {customerErrors.phone && <span className="error-text">{customerErrors.phone}</span>}
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="readyEmail">Email *</label>
+              <input
+                id="readyEmail"
+                name="email"
+                type="email"
+                value={customerInfo.email}
+                onChange={handleCustomerInfoChange}
+                className={customerErrors.email ? 'error' : ''}
+                placeholder="jane@example.com"
+              />
+              {customerErrors.email && <span className="error-text">{customerErrors.email}</span>}
+            </div>
+          </form>
+
+          <div className="ready-order-actions">
+            <button type="button" className="back-button" onClick={handleViewCart}>
+              Back
+            </button>
+            <button type="button" className="ready-primary-button" onClick={handleReviewOrder}>
+              Review Order
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (viewMode === 'cart') {
     return (
       <div className="ready-made-screen">
         <div className="ready-made-content ready-review-content">
@@ -164,7 +552,7 @@ export default function ReadyMadeDesigns({ onBack }) {
               Continue Shopping
             </button>
             <div>
-              <h1>Ready-Made Order</h1>
+              <h1>Ready-Made Cart</h1>
               <p>{totalQuantity} total magnets</p>
             </div>
           </header>
@@ -175,45 +563,7 @@ export default function ReadyMadeDesigns({ onBack }) {
             </div>
           ) : (
             <div className="ready-order-list">
-              {cartItems.map(item => (
-                <article className="ready-order-row" key={item.id}>
-                  <img src={item.imageUrl} alt={item.title} />
-                  <div>
-                    <strong>
-                      {item.templateNumber} {item.title} x {item.quantity}
-                    </strong>
-                    <span>{item.templateNumber}</span>
-                  </div>
-                  <div className="cart-quantity-controls" aria-label={`${item.title} quantity`}>
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateCartQuantity(item.id, item.quantity - 1)}
-                    >
-                      -
-                    </button>
-                    <span>{item.quantity}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateCartQuantity(item.id, item.quantity + 1)}
-                    >
-                      +
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    className="remove-template-button"
-                    onClick={() => handleRemoveCartItem(item.id)}
-                  >
-                    Remove
-                  </button>
-                </article>
-              ))}
-            </div>
-          )}
-
-          {checkoutMessage && (
-            <div className="template-placeholder-message" role="status">
-              {checkoutMessage}
+              {cartItems.map(item => renderOrderItem(item, true))}
             </div>
           )}
 
@@ -224,10 +574,10 @@ export default function ReadyMadeDesigns({ onBack }) {
             <button
               type="button"
               className="ready-primary-button"
-              onClick={handlePlaceholderCheckout}
+              onClick={() => setViewMode('customer')}
               disabled={cartItems.length === 0}
             >
-              Checkout
+              Customer Information
             </button>
           </div>
         </div>
@@ -245,14 +595,14 @@ export default function ReadyMadeDesigns({ onBack }) {
             </button>
             <div>
               <h1>{selectedTemplate.title}</h1>
-              <p>{selectedTemplate.templateNumber}</p>
+              <p>Template #{selectedTemplate.templateNumber}</p>
             </div>
           </header>
 
           <section className="ready-template-detail">
             <img src={selectedTemplate.imageUrl} alt={selectedTemplate.title} />
             <div className="ready-template-detail-panel">
-              <span className="detail-template-number">{selectedTemplate.templateNumber}</span>
+              <span className="detail-template-number">Template #{selectedTemplate.templateNumber}</span>
               <h2>{selectedTemplate.title}</h2>
               <div className="detail-quantity-control">
                 <span>Quantity</span>
@@ -276,7 +626,7 @@ export default function ReadyMadeDesigns({ onBack }) {
               <button
                 type="button"
                 className="ready-secondary-button"
-                onClick={handleViewOrder}
+                onClick={handleViewCart}
                 disabled={cartItems.length === 0}
               >
                 View Order ({totalQuantity})
@@ -302,7 +652,7 @@ export default function ReadyMadeDesigns({ onBack }) {
           <button
             type="button"
             className="ready-cart-button"
-            onClick={handleViewOrder}
+            onClick={handleViewCart}
             disabled={cartItems.length === 0}
           >
             View Order ({totalQuantity})

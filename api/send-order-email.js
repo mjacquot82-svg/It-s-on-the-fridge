@@ -170,6 +170,10 @@ async function verifyTurnstileToken(token, clientIp) {
 }
 
 function buildHtml(order) {
+  if (order.orderType === 'ready-made') {
+    return buildReadyMadeHtml(order);
+  }
+
   const { customerInfo } = order;
   const magnetType = order.magnetType === 'round' ? 'Round Magnet' : 'Rectangle Magnet';
   const submittedAt = new Date(order.submittedAt).toLocaleString();
@@ -204,7 +208,43 @@ function buildHtml(order) {
   `;
 }
 
+function buildReadyMadeHtml(order) {
+  const { customerInfo } = order;
+  const submittedAt = new Date(order.submittedAt).toLocaleString();
+  const orderItems = order.readyMadeItems.map(item => (
+    `<li>${escapeHtml(item.templateNumber)} ${escapeHtml(item.title)} x ${escapeHtml(item.quantity)}</li>`
+  )).join('');
+
+  return `
+    <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.45;">
+      <div style="border-bottom: 4px solid #63c7bd; padding-bottom: 14px; margin-bottom: 20px;">
+        <h1 style="margin: 0; font-size: 26px;">It's On The Fridge</h1>
+        <p style="margin: 6px 0 0; color: #65737b;">New ready-made magnet order</p>
+      </div>
+
+      <h2 style="font-size: 18px;">Customer</h2>
+      <p><strong>Name:</strong> ${escapeHtml(customerInfo.name)}</p>
+      <p><strong>Email:</strong> ${escapeHtml(customerInfo.email)}</p>
+      <p><strong>Phone:</strong> ${escapeHtml(customerInfo.phone)}</p>
+
+      <h2 style="font-size: 18px;">Ready-Made Order Contents</h2>
+      <ul>${orderItems}</ul>
+      <p><strong>Total Magnets:</strong> ${escapeHtml(order.totalQuantity)}</p>
+      <p><strong>Order ID:</strong> ${escapeHtml(order.id)}</p>
+      <p><strong>Submitted:</strong> ${escapeHtml(submittedAt)}</p>
+
+      <div style="background: #fff8df; border-left: 4px solid #ffe22e; padding: 12px; margin-top: 18px;">
+        Jennifer will contact the customer to confirm pickup and payment.
+      </div>
+    </div>
+  `;
+}
+
 function buildText(order) {
+  if (order.orderType === 'ready-made') {
+    return buildReadyMadeText(order);
+  }
+
   const { customerInfo } = order;
   const magnetType = order.magnetType === 'round' ? 'Round Magnet' : 'Rectangle Magnet';
   const submittedAt = new Date(order.submittedAt).toLocaleString();
@@ -233,6 +273,33 @@ function buildText(order) {
   ].join('\n');
 }
 
+function buildReadyMadeText(order) {
+  const { customerInfo } = order;
+  const submittedAt = new Date(order.submittedAt).toLocaleString();
+  const orderItems = order.readyMadeItems.map(item => (
+    `${item.templateNumber} ${item.title} x ${item.quantity}`
+  ));
+
+  return [
+    "It's On The Fridge",
+    'New ready-made magnet order',
+    '',
+    'Customer:',
+    `Name: ${customerInfo.name}`,
+    `Email: ${customerInfo.email}`,
+    `Phone: ${customerInfo.phone}`,
+    '',
+    'Ready-Made Order Contents:',
+    ...orderItems,
+    '',
+    `Total Magnets: ${order.totalQuantity}`,
+    `Order ID: ${order.id}`,
+    `Submitted: ${submittedAt}`,
+    '',
+    'Jennifer will contact the customer to confirm pickup and payment.',
+  ].join('\n');
+}
+
 function validateOrder(order) {
   if (!order || typeof order !== 'object') {
     throw createHttpError('Missing order', 400);
@@ -240,6 +307,11 @@ function validateOrder(order) {
 
   if (!order.customerInfo) {
     throw createHttpError('Missing customer information', 400);
+  }
+
+  if (order.orderType === 'ready-made') {
+    validateReadyMadeOrder(order);
+    return;
   }
 
   const { customerInfo } = order;
@@ -267,6 +339,51 @@ function validateOrder(order) {
 
   if (!order.photo || !order.croppedImage) {
     throw createHttpError('Missing order image attachments', 400);
+  }
+}
+
+function validateReadyMadeOrder(order) {
+  const { customerInfo } = order;
+
+  if (!customerInfo.name?.trim()) {
+    throw createHttpError('Name is required', 400);
+  }
+
+  if (!/^\d{10,}$/.test(String(customerInfo.phone || '').replace(/\D/g, ''))) {
+    throw createHttpError('A valid phone number is required', 400);
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(customerInfo.email || ''))) {
+    throw createHttpError('A valid email address is required', 400);
+  }
+
+  if (!Array.isArray(order.readyMadeItems) || order.readyMadeItems.length === 0) {
+    throw createHttpError('At least one ready-made template is required', 400);
+  }
+
+  const totalQuantity = order.readyMadeItems.reduce((total, item) => {
+    if (!item.templateNumber?.trim()) {
+      throw createHttpError('Template number is required', 400);
+    }
+
+    if (!item.title?.trim()) {
+      throw createHttpError('Template title is required', 400);
+    }
+
+    const quantity = Number(item.quantity);
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) {
+      throw createHttpError('Template quantity must be between 1 and 100', 400);
+    }
+
+    return total + quantity;
+  }, 0);
+
+  if (totalQuantity < 1 || totalQuantity > 100) {
+    throw createHttpError('Total magnet quantity must be between 1 and 100', 400);
+  }
+
+  if (Number(order.totalQuantity) !== totalQuantity) {
+    throw createHttpError('Ready-made order total does not match item quantities', 400);
   }
 }
 
@@ -299,14 +416,33 @@ export default async function handler(req, res) {
 
     await verifyTurnstileToken(turnstileToken, clientIp);
 
-    const originalImage = parseDataUrl(order.photo, `order-${order.id}-original`, MAX_ORIGINAL_IMAGE_BYTES);
-    const croppedImage = parseDataUrl(order.croppedImage, `order-${order.id}-print`, MAX_CROPPED_IMAGE_BYTES);
+    const attachments = [];
+    const isReadyMadeOrder = order.orderType === 'ready-made';
+    const customerName = isReadyMadeOrder
+      ? order.customerInfo.name.trim()
+      : `${order.customerInfo.firstName} ${order.customerInfo.lastName}`.trim();
 
-    if (originalImage.sizeBytes + croppedImage.sizeBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
-      throw createHttpError('Order images are too large. Please upload a smaller photo and try again.', 413);
+    if (!isReadyMadeOrder) {
+      const originalImage = parseDataUrl(order.photo, `order-${order.id}-original`, MAX_ORIGINAL_IMAGE_BYTES);
+      const croppedImage = parseDataUrl(order.croppedImage, `order-${order.id}-print`, MAX_CROPPED_IMAGE_BYTES);
+
+      if (originalImage.sizeBytes + croppedImage.sizeBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
+        throw createHttpError('Order images are too large. Please upload a smaller photo and try again.', 413);
+      }
+
+      attachments.push(
+        {
+          content: originalImage.content,
+          filename: `Original Customer Photo.${originalImage.filename.split('.').pop()}`,
+          contentType: originalImage.contentType,
+        },
+        {
+          content: croppedImage.content,
+          filename: `Print-Ready Magnet Image.${croppedImage.filename.split('.').pop()}`,
+          contentType: croppedImage.contentType,
+        }
+      );
     }
-
-    const customerName = `${order.customerInfo.firstName} ${order.customerInfo.lastName}`.trim();
 
     const response = await fetch(RESEND_API_URL, {
       method: 'POST',
@@ -318,21 +454,10 @@ export default async function handler(req, res) {
         from,
         to,
         reply_to: order.customerInfo.email,
-        subject: `New Magnet Order - ${customerName || order.id}`,
+        subject: `${isReadyMadeOrder ? 'New Ready-Made Magnet Order' : 'New Magnet Order'} - ${customerName || order.id}`,
         html: buildHtml(order),
         text: buildText(order),
-        attachments: [
-          {
-            content: originalImage.content,
-            filename: `Original Customer Photo.${originalImage.filename.split('.').pop()}`,
-            contentType: originalImage.contentType,
-          },
-          {
-            content: croppedImage.content,
-            filename: `Print-Ready Magnet Image.${croppedImage.filename.split('.').pop()}`,
-            contentType: croppedImage.contentType,
-          },
-        ],
+        ...(attachments.length > 0 ? { attachments } : {}),
       }),
     });
 
