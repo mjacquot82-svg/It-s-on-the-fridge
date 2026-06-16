@@ -3,6 +3,7 @@
 const CATEGORIES_TABLE = 'template_categories';
 const TEMPLATES_TABLE = 'magnet_templates';
 const TEMPLATE_BUCKET = 'ready-made-templates';
+const UNCATEGORIZED_CATEGORY_NAME = 'Uncategorized';
 
 function sendJson(res, status, body) {
   res.statusCode = status;
@@ -26,11 +27,6 @@ function getAuthHeaders(serviceRoleKey) {
 
 function normalizeBoolean(value, fallback = false) {
   return typeof value === 'boolean' ? value : fallback;
-}
-
-function normalizeSortOrder(value) {
-  const sortOrder = Number(value);
-  return Number.isInteger(sortOrder) ? sortOrder : 0;
 }
 
 function normalizeTemplateShape(value) {
@@ -84,6 +80,7 @@ function normalizeCategory(row) {
     name: row.name,
     sortOrder: row.sort_order,
     visible: row.visible,
+    isSystem: Boolean(row.is_system),
   };
 }
 
@@ -94,6 +91,7 @@ function normalizeTemplate(row) {
     title: row.title,
     categoryId: row.category_id,
     categoryName: row.template_categories?.name || '',
+    categoryIsSystem: Boolean(row.template_categories?.is_system),
     imageUrl: row.image_url,
     shape: normalizeTemplateShape(row.shape),
     visible: row.visible,
@@ -117,11 +115,11 @@ async function loadTemplateLibrary(supabaseUrl, serviceRoleKey) {
   const baseUrl = supabaseUrl.replace(/\/$/, '');
   const headers = getAuthHeaders(serviceRoleKey);
   const categoriesUrl = new URL(`${baseUrl}/rest/v1/${CATEGORIES_TABLE}`);
-  categoriesUrl.searchParams.set('select', 'id,name,sort_order,visible');
-  categoriesUrl.searchParams.set('order', 'sort_order.asc,name.asc');
+  categoriesUrl.searchParams.set('select', 'id,name,sort_order,visible,is_system');
+  categoriesUrl.searchParams.set('order', 'is_system.asc,sort_order.asc,name.asc');
 
   const templatesUrl = new URL(`${baseUrl}/rest/v1/${TEMPLATES_TABLE}`);
-  templatesUrl.searchParams.set('select', 'id,template_number,title,category_id,image_url,shape,visible,featured,created_at,template_categories(name)');
+  templatesUrl.searchParams.set('select', 'id,template_number,title,category_id,image_url,shape,visible,featured,created_at,template_categories(name,is_system)');
   templatesUrl.searchParams.set('order', 'created_at.desc');
 
   const [categories, templates] = await Promise.all([
@@ -137,7 +135,18 @@ async function loadTemplateLibrary(supabaseUrl, serviceRoleKey) {
 
 async function createCategory(supabaseUrl, serviceRoleKey, body) {
   const baseUrl = supabaseUrl.replace(/\/$/, '');
-  const endpoint = `${baseUrl}/rest/v1/${CATEGORIES_TABLE}?select=id,name,sort_order,visible`;
+  const maxSortUrl = new URL(`${baseUrl}/rest/v1/${CATEGORIES_TABLE}`);
+  maxSortUrl.searchParams.set('select', 'sort_order');
+  maxSortUrl.searchParams.set('is_system', 'eq.false');
+  maxSortUrl.searchParams.set('order', 'sort_order.desc');
+  maxSortUrl.searchParams.set('limit', '1');
+
+  const maxRows = await fetchJson(maxSortUrl, {
+    headers: getAuthHeaders(serviceRoleKey),
+  }, 'Unable to inspect template categories.');
+  const nextSortOrder = (maxRows[0]?.sort_order || 0) + 1;
+
+  const endpoint = `${baseUrl}/rest/v1/${CATEGORIES_TABLE}?select=id,name,sort_order,visible,is_system`;
   const rows = await fetchJson(endpoint, {
     method: 'POST',
     headers: {
@@ -147,12 +156,115 @@ async function createCategory(supabaseUrl, serviceRoleKey, body) {
     },
     body: JSON.stringify({
       name: getRequiredString(body.name, 'Category name'),
-      sort_order: normalizeSortOrder(body.sortOrder),
+      sort_order: nextSortOrder,
       visible: normalizeBoolean(body.visible, true),
+      is_system: false,
     }),
   }, 'Unable to create template category.');
 
   return normalizeCategory(rows[0]);
+}
+
+async function ensureUncategorizedCategory(supabaseUrl, serviceRoleKey) {
+  const baseUrl = supabaseUrl.replace(/\/$/, '');
+  const headers = getAuthHeaders(serviceRoleKey);
+  const existingUrl = new URL(`${baseUrl}/rest/v1/${CATEGORIES_TABLE}`);
+  existingUrl.searchParams.set('select', 'id,name,sort_order,visible,is_system');
+  existingUrl.searchParams.set('is_system', 'eq.true');
+  existingUrl.searchParams.set('name', `eq.${UNCATEGORIZED_CATEGORY_NAME}`);
+  existingUrl.searchParams.set('limit', '1');
+
+  const existingRows = await fetchJson(existingUrl, { headers }, 'Unable to load Uncategorized category.');
+
+  if (existingRows[0]) {
+    return normalizeCategory(existingRows[0]);
+  }
+
+  const endpoint = `${baseUrl}/rest/v1/${CATEGORIES_TABLE}?select=id,name,sort_order,visible,is_system`;
+  const rows = await fetchJson(endpoint, {
+    method: 'POST',
+    headers: {
+      ...headers,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify({
+      name: UNCATEGORIZED_CATEGORY_NAME,
+      sort_order: 0,
+      visible: false,
+      is_system: true,
+    }),
+  }, 'Unable to create Uncategorized category.');
+
+  return normalizeCategory(rows[0]);
+}
+
+async function reorderCategories(supabaseUrl, serviceRoleKey, body) {
+  const categoryIds = Array.isArray(body.categoryIds) ? body.categoryIds : [];
+
+  if (categoryIds.length === 0) {
+    throw new Error('No category order was provided.');
+  }
+
+  const baseUrl = supabaseUrl.replace(/\/$/, '');
+  const headers = getAuthHeaders(serviceRoleKey);
+
+  await Promise.all(categoryIds.map((categoryId, index) => {
+    const endpoint = new URL(`${baseUrl}/rest/v1/${CATEGORIES_TABLE}`);
+    endpoint.searchParams.set('id', `eq.${getRequiredString(categoryId, 'Category id')}`);
+    endpoint.searchParams.set('is_system', 'eq.false');
+
+    return fetchJson(endpoint, {
+      method: 'PATCH',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sort_order: index + 1,
+      }),
+    }, 'Unable to reorder template categories.');
+  }));
+
+  const library = await loadTemplateLibrary(supabaseUrl, serviceRoleKey);
+  return library.categories;
+}
+
+function getStorageObjectPath(supabaseUrl, imageUrl) {
+  const baseUrl = supabaseUrl.replace(/\/$/, '');
+  const publicPrefix = `${baseUrl}/storage/v1/object/public/${TEMPLATE_BUCKET}/`;
+  const privatePrefix = `${baseUrl}/storage/v1/object/${TEMPLATE_BUCKET}/`;
+  const text = String(imageUrl || '');
+
+  if (text.startsWith(publicPrefix)) {
+    return decodeURIComponent(text.slice(publicPrefix.length));
+  }
+
+  if (text.startsWith(privatePrefix)) {
+    return decodeURIComponent(text.slice(privatePrefix.length));
+  }
+
+  return '';
+}
+
+async function deleteTemplateImage(supabaseUrl, serviceRoleKey, imageUrl) {
+  const objectPath = getStorageObjectPath(supabaseUrl, imageUrl);
+
+  if (!objectPath) {
+    return;
+  }
+
+  const baseUrl = supabaseUrl.replace(/\/$/, '');
+  const deleteUrl = `${baseUrl}/storage/v1/object/${TEMPLATE_BUCKET}/${objectPath}`;
+  const response = await fetch(deleteUrl, {
+    method: 'DELETE',
+    headers: getAuthHeaders(serviceRoleKey),
+  });
+
+  if (!response.ok && response.status !== 404) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(errorText || 'Unable to delete template image.');
+  }
 }
 
 async function uploadTemplateImage(supabaseUrl, serviceRoleKey, body) {
@@ -182,7 +294,7 @@ async function uploadTemplateImage(supabaseUrl, serviceRoleKey, body) {
 async function createTemplate(supabaseUrl, serviceRoleKey, body) {
   const imageUrl = await uploadTemplateImage(supabaseUrl, serviceRoleKey, body);
   const baseUrl = supabaseUrl.replace(/\/$/, '');
-  const endpoint = `${baseUrl}/rest/v1/${TEMPLATES_TABLE}?select=id,template_number,title,category_id,image_url,shape,visible,featured,created_at,template_categories(name)`;
+  const endpoint = `${baseUrl}/rest/v1/${TEMPLATES_TABLE}?select=id,template_number,title,category_id,image_url,shape,visible,featured,created_at,template_categories(name,is_system)`;
   const rows = await fetchJson(endpoint, {
     method: 'POST',
     headers: {
@@ -226,7 +338,7 @@ async function updateTemplate(supabaseUrl, serviceRoleKey, body) {
   const baseUrl = supabaseUrl.replace(/\/$/, '');
   const endpoint = new URL(`${baseUrl}/rest/v1/${TEMPLATES_TABLE}`);
   endpoint.searchParams.set('id', `eq.${id}`);
-  endpoint.searchParams.set('select', 'id,template_number,title,category_id,image_url,shape,visible,featured,created_at,template_categories(name)');
+  endpoint.searchParams.set('select', 'id,template_number,title,category_id,image_url,shape,visible,featured,created_at,template_categories(name,is_system)');
 
   const rows = await fetchJson(endpoint, {
     method: 'PATCH',
@@ -239,6 +351,116 @@ async function updateTemplate(supabaseUrl, serviceRoleKey, body) {
   }, 'Unable to update magnet template.');
 
   return normalizeTemplate(rows[0]);
+}
+
+async function loadTemplatesByCategory(supabaseUrl, serviceRoleKey, categoryId) {
+  const baseUrl = supabaseUrl.replace(/\/$/, '');
+  const endpoint = new URL(`${baseUrl}/rest/v1/${TEMPLATES_TABLE}`);
+  endpoint.searchParams.set('select', 'id,image_url');
+  endpoint.searchParams.set('category_id', `eq.${categoryId}`);
+
+  return fetchJson(endpoint, {
+    headers: getAuthHeaders(serviceRoleKey),
+  }, 'Unable to load category templates.');
+}
+
+async function fetchCategory(supabaseUrl, serviceRoleKey, categoryId) {
+  const baseUrl = supabaseUrl.replace(/\/$/, '');
+  const endpoint = new URL(`${baseUrl}/rest/v1/${CATEGORIES_TABLE}`);
+  endpoint.searchParams.set('select', 'id,name,sort_order,visible,is_system');
+  endpoint.searchParams.set('id', `eq.${categoryId}`);
+  endpoint.searchParams.set('limit', '1');
+
+  const rows = await fetchJson(endpoint, {
+    headers: getAuthHeaders(serviceRoleKey),
+  }, 'Unable to load template category.');
+
+  return rows[0] ? normalizeCategory(rows[0]) : null;
+}
+
+async function deleteCategory(supabaseUrl, serviceRoleKey, body) {
+  const categoryId = getRequiredString(body.categoryId, 'Category id');
+  const templateAction = body.templateAction === 'delete' ? 'delete' : 'move';
+  const category = await fetchCategory(supabaseUrl, serviceRoleKey, categoryId);
+
+  if (!category) {
+    throw new Error('Category was not found.');
+  }
+
+  if (category.isSystem) {
+    throw new Error('Uncategorized cannot be deleted.');
+  }
+
+  const baseUrl = supabaseUrl.replace(/\/$/, '');
+  const headers = getAuthHeaders(serviceRoleKey);
+
+  if (templateAction === 'move') {
+    const uncategorized = await ensureUncategorizedCategory(supabaseUrl, serviceRoleKey);
+    const templateEndpoint = new URL(`${baseUrl}/rest/v1/${TEMPLATES_TABLE}`);
+    templateEndpoint.searchParams.set('category_id', `eq.${categoryId}`);
+
+    await fetchJson(templateEndpoint, {
+      method: 'PATCH',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        category_id: uncategorized.id,
+      }),
+    }, 'Unable to move templates to Uncategorized.');
+  } else {
+    const templates = await loadTemplatesByCategory(supabaseUrl, serviceRoleKey, categoryId);
+    await Promise.all(templates.map(template => (
+      deleteTemplateImage(supabaseUrl, serviceRoleKey, template.image_url)
+    )));
+
+    const templateEndpoint = new URL(`${baseUrl}/rest/v1/${TEMPLATES_TABLE}`);
+    templateEndpoint.searchParams.set('category_id', `eq.${categoryId}`);
+    await fetchJson(templateEndpoint, {
+      method: 'DELETE',
+      headers,
+    }, 'Unable to delete category templates.');
+  }
+
+  const categoryEndpoint = new URL(`${baseUrl}/rest/v1/${CATEGORIES_TABLE}`);
+  categoryEndpoint.searchParams.set('id', `eq.${categoryId}`);
+  await fetchJson(categoryEndpoint, {
+    method: 'DELETE',
+    headers,
+  }, 'Unable to delete template category.');
+
+  return loadTemplateLibrary(supabaseUrl, serviceRoleKey);
+}
+
+async function deleteTemplate(supabaseUrl, serviceRoleKey, body) {
+  const templateId = getRequiredString(body.templateId, 'Template id');
+  const baseUrl = supabaseUrl.replace(/\/$/, '');
+  const headers = getAuthHeaders(serviceRoleKey);
+  const lookupEndpoint = new URL(`${baseUrl}/rest/v1/${TEMPLATES_TABLE}`);
+  lookupEndpoint.searchParams.set('select', 'id,image_url');
+  lookupEndpoint.searchParams.set('id', `eq.${templateId}`);
+  lookupEndpoint.searchParams.set('limit', '1');
+
+  const rows = await fetchJson(lookupEndpoint, {
+    headers,
+  }, 'Unable to load template.');
+  const template = rows[0];
+
+  if (!template) {
+    throw new Error('Template was not found.');
+  }
+
+  await deleteTemplateImage(supabaseUrl, serviceRoleKey, template.image_url);
+
+  const deleteEndpoint = new URL(`${baseUrl}/rest/v1/${TEMPLATES_TABLE}`);
+  deleteEndpoint.searchParams.set('id', `eq.${templateId}`);
+  await fetchJson(deleteEndpoint, {
+    method: 'DELETE',
+    headers,
+  }, 'Unable to delete template.');
+
+  return { deletedTemplateId: templateId };
 }
 
 export default async function handler(req, res) {
@@ -262,6 +484,7 @@ export default async function handler(req, res) {
     }
 
     if (body?.action === 'list') {
+      await ensureUncategorizedCategory(supabaseUrl, serviceRoleKey);
       return sendJson(res, 200, await loadTemplateLibrary(supabaseUrl, serviceRoleKey));
     }
 
@@ -273,8 +496,20 @@ export default async function handler(req, res) {
       return sendJson(res, 200, { template: await createTemplate(supabaseUrl, serviceRoleKey, body) });
     }
 
+    if (body?.action === 'reorderCategories') {
+      return sendJson(res, 200, { categories: await reorderCategories(supabaseUrl, serviceRoleKey, body) });
+    }
+
     if (body?.action === 'updateTemplate') {
       return sendJson(res, 200, { template: await updateTemplate(supabaseUrl, serviceRoleKey, body) });
+    }
+
+    if (body?.action === 'deleteCategory') {
+      return sendJson(res, 200, await deleteCategory(supabaseUrl, serviceRoleKey, body));
+    }
+
+    if (body?.action === 'deleteTemplate') {
+      return sendJson(res, 200, await deleteTemplate(supabaseUrl, serviceRoleKey, body));
     }
 
     return sendJson(res, 400, { error: 'Unknown template admin action.' });

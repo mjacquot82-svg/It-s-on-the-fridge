@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useOrder } from '../context/useOrder';
 import {
   createMagnetTemplate,
   createTemplateCategory,
+  deleteMagnetTemplate,
+  deleteTemplateCategory,
   emptyTemplateLibrary,
   loadTemplateLibrary,
   readImageAsDataUrl,
+  reorderTemplateCategories,
   updateMagnetTemplate,
 } from '../utils/templateAdmin';
 import '../styles/SettingsPage.css';
@@ -14,7 +17,6 @@ const SETTINGS_PIN = '2468';
 
 const emptyCategoryForm = {
   name: '',
-  sortOrder: 0,
   visible: true,
 };
 
@@ -44,6 +46,20 @@ export default function SettingsPage({ onExit }) {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isCategoryManagementOpen, setIsCategoryManagementOpen] = useState(false);
+  const [draggedCategoryId, setDraggedCategoryId] = useState('');
+  const [categoryDeleteTarget, setCategoryDeleteTarget] = useState(null);
+  const [categoryDeleteAction, setCategoryDeleteAction] = useState('move');
+  const [templateDeleteTarget, setTemplateDeleteTarget] = useState(null);
+  const categoryDragRef = useRef({
+    categoryId: '',
+    orderedIds: [],
+    originalIds: [],
+    initialCategories: [],
+  });
+
+  const userCategories = useMemo(() => (
+    templateLibrary.categories.filter(category => !category.isSystem)
+  ), [templateLibrary.categories]);
 
   const filteredTemplates = useMemo(() => {
     if (categoryFilter === 'all') {
@@ -51,11 +67,38 @@ export default function SettingsPage({ onExit }) {
     }
 
     if (categoryFilter === 'uncategorized') {
-      return templateLibrary.templates.filter(template => !template.categoryId);
+      return templateLibrary.templates.filter(template => !template.categoryId || template.categoryIsSystem);
     }
 
     return templateLibrary.templates.filter(template => template.categoryId === categoryFilter);
   }, [categoryFilter, templateLibrary.templates]);
+
+  const categoryTemplateCounts = useMemo(() => (
+    templateLibrary.templates.reduce((counts, template) => {
+      if (template.categoryId) {
+        counts[template.categoryId] = (counts[template.categoryId] || 0) + 1;
+      }
+
+      return counts;
+    }, {})
+  ), [templateLibrary.templates]);
+
+  const applyCategoryOrder = (orderedIds) => {
+    setTemplateLibrary(prev => {
+      const normalCategories = orderedIds
+        .map((categoryId, index) => {
+          const category = prev.categories.find(item => item.id === categoryId);
+          return category ? { ...category, sortOrder: index + 1 } : null;
+        })
+        .filter(Boolean);
+      const systemCategories = prev.categories.filter(category => category.isSystem);
+
+      return {
+        ...prev,
+        categories: [...normalCategories, ...systemCategories],
+      };
+    });
+  };
 
   const handleUnlock = (event) => {
     event.preventDefault();
@@ -156,19 +199,10 @@ export default function SettingsPage({ onExit }) {
     setTemplateMessage('');
 
     try {
-      const { category } = await createTemplateCategory(pin, {
-        ...categoryForm,
-        sortOrder: Number(categoryForm.sortOrder),
-      });
+      const { category } = await createTemplateCategory(pin, categoryForm);
       setTemplateLibrary(prev => ({
         ...prev,
-        categories: [...prev.categories, category].sort((a, b) => {
-          if (a.sortOrder !== b.sortOrder) {
-            return a.sortOrder - b.sortOrder;
-          }
-
-          return a.name.localeCompare(b.name);
-        }),
+        categories: [...prev.categories.filter(item => !item.isSystem), category, ...prev.categories.filter(item => item.isSystem)],
       }));
       setCategoryForm(emptyCategoryForm);
       setTemplateForm(prev => ({
@@ -217,7 +251,7 @@ export default function SettingsPage({ onExit }) {
         throw new Error('Template image is required.');
       }
 
-      if (templateLibrary.categories.length > 0 && !templateForm.categoryId) {
+      if (userCategories.length > 0 && !templateForm.categoryId) {
         throw new Error('Choose a category for this template.');
       }
 
@@ -264,6 +298,149 @@ export default function SettingsPage({ onExit }) {
     } catch (error) {
       setTemplateStatus('error');
       setTemplateMessage(error.message || 'Unable to update template.');
+    }
+  };
+
+  const handleCategoryDragStart = (event, categoryId) => {
+    if (templateStatus === 'saving') {
+      return;
+    }
+
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    const orderedIds = userCategories.map(category => category.id);
+    categoryDragRef.current = {
+      categoryId,
+      orderedIds,
+      originalIds: orderedIds,
+      initialCategories: templateLibrary.categories,
+    };
+    setDraggedCategoryId(categoryId);
+    setTemplateMessage('');
+  };
+
+  const handleCategoryDragMove = (event) => {
+    const { categoryId, orderedIds } = categoryDragRef.current;
+
+    if (!categoryId) {
+      return;
+    }
+
+    const targetRow = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest('[data-category-id]');
+    const targetId = targetRow?.dataset.categoryId;
+
+    if (!targetId || targetId === categoryId || !orderedIds.includes(targetId)) {
+      return;
+    }
+
+    const nextIds = orderedIds.filter(id => id !== categoryId);
+    nextIds.splice(nextIds.indexOf(targetId), 0, categoryId);
+    categoryDragRef.current.orderedIds = nextIds;
+    applyCategoryOrder(nextIds);
+  };
+
+  const handleCategoryDragEnd = async (event) => {
+    const { categoryId, orderedIds, originalIds, initialCategories } = categoryDragRef.current;
+
+    if (!categoryId) {
+      return;
+    }
+
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    categoryDragRef.current = {
+      categoryId: '',
+      orderedIds: [],
+      originalIds: [],
+      initialCategories: [],
+    };
+    setDraggedCategoryId('');
+
+    if (orderedIds.join('|') === originalIds.join('|')) {
+      return;
+    }
+
+    setTemplateStatus('saving');
+    setTemplateMessage('');
+
+    try {
+      const { categories } = await reorderTemplateCategories(pin, orderedIds);
+      setTemplateLibrary(prev => ({
+        ...prev,
+        categories,
+      }));
+      setTemplateStatus('ready');
+      setTemplateMessage('Category order saved.');
+    } catch (error) {
+      setTemplateLibrary(prev => ({
+        ...prev,
+        categories: initialCategories,
+      }));
+      setTemplateStatus('error');
+      setTemplateMessage(error.message || 'Unable to reorder categories.');
+    }
+  };
+
+  const handleOpenCategoryDelete = (category) => {
+    setCategoryDeleteTarget(category);
+    setCategoryDeleteAction('move');
+    setTemplateMessage('');
+  };
+
+  const handleCloseCategoryDelete = () => {
+    setCategoryDeleteTarget(null);
+    setCategoryDeleteAction('move');
+  };
+
+  const handleDeleteCategory = async (event) => {
+    event.preventDefault();
+
+    if (!categoryDeleteTarget) {
+      return;
+    }
+
+    setTemplateStatus('saving');
+    setTemplateMessage('');
+
+    try {
+      const library = await deleteTemplateCategory(pin, categoryDeleteTarget.id, categoryDeleteAction);
+      setTemplateLibrary(library);
+      setTemplateForm(prev => ({
+        ...prev,
+        categoryId: prev.categoryId === categoryDeleteTarget.id ? '' : prev.categoryId,
+      }));
+      setCategoryFilter(prev => (prev === categoryDeleteTarget.id ? 'all' : prev));
+      setTemplateStatus('ready');
+      setTemplateMessage('Category deleted.');
+      handleCloseCategoryDelete();
+    } catch (error) {
+      setTemplateStatus('error');
+      setTemplateMessage(error.message || 'Unable to delete category.');
+    }
+  };
+
+  const handleDeleteTemplate = async (event) => {
+    event.preventDefault();
+
+    if (!templateDeleteTarget) {
+      return;
+    }
+
+    setTemplateStatus('saving');
+    setTemplateMessage('');
+
+    try {
+      await deleteMagnetTemplate(pin, templateDeleteTarget.id);
+      setTemplateLibrary(prev => ({
+        ...prev,
+        templates: prev.templates.filter(template => template.id !== templateDeleteTarget.id),
+      }));
+      setTemplateStatus('ready');
+      setTemplateMessage(`Template ${templateDeleteTarget.templateNumber} deleted.`);
+      setTemplateDeleteTarget(null);
+    } catch (error) {
+      setTemplateStatus('error');
+      setTemplateMessage(error.message || 'Unable to delete template.');
     }
   };
 
@@ -411,10 +588,10 @@ export default function SettingsPage({ onExit }) {
                       name="categoryId"
                       value={templateForm.categoryId}
                       onChange={handleTemplateChange}
-                      required={templateLibrary.categories.length > 0}
+                      required={userCategories.length > 0}
                     >
                       <option value="">Choose category</option>
-                      {templateLibrary.categories.map(category => (
+                      {userCategories.map(category => (
                         <option key={category.id} value={category.id}>
                           {category.name}
                         </option>
@@ -494,43 +671,55 @@ export default function SettingsPage({ onExit }) {
                           required
                         />
                       </div>
-                      <div className="form-row">
-                        <div className="form-group">
-                          <label htmlFor="categorySortOrder">Sort Order</label>
-                          <input
-                            id="categorySortOrder"
-                            name="sortOrder"
-                            type="number"
-                            step="1"
-                            value={categoryForm.sortOrder}
-                            onChange={handleCategoryChange}
-                          />
-                        </div>
-                        <div className="settings-toggle template-toggle">
-                          <input
-                            id="categoryVisible"
-                            name="visible"
-                            type="checkbox"
-                            checked={categoryForm.visible}
-                            onChange={handleCategoryChange}
-                          />
-                          <label htmlFor="categoryVisible">Visible</label>
-                        </div>
+                      <div className="settings-toggle template-toggle">
+                        <input
+                          id="categoryVisible"
+                          name="visible"
+                          type="checkbox"
+                          checked={categoryForm.visible}
+                          onChange={handleCategoryChange}
+                        />
+                        <label htmlFor="categoryVisible">Visible</label>
                       </div>
                       <button type="submit" className="next-button" disabled={templateStatus === 'saving'}>
                         Create Category
                       </button>
 
                       <div className="category-list" aria-label="Template categories">
-                        {templateLibrary.categories.length === 0 ? (
+                        {userCategories.length === 0 ? (
                           <p>No categories yet.</p>
                         ) : (
-                          templateLibrary.categories.map(category => (
-                            <div className="category-row" key={category.id}>
-                              <span>{category.name}</span>
-                              <small>
-                                Sort {category.sortOrder} · {category.visible ? 'Visible' : 'Hidden'}
-                              </small>
+                          userCategories.map(category => (
+                            <div
+                              className={draggedCategoryId === category.id ? 'category-row is-dragging' : 'category-row'}
+                              data-category-id={category.id}
+                              key={category.id}
+                            >
+                              <button
+                                type="button"
+                                className="category-drag-handle"
+                                aria-label={`Drag ${category.name}`}
+                                disabled={templateStatus === 'saving'}
+                                onPointerDown={(event) => handleCategoryDragStart(event, category.id)}
+                                onPointerMove={handleCategoryDragMove}
+                                onPointerUp={handleCategoryDragEnd}
+                                onPointerCancel={handleCategoryDragEnd}
+                              >
+                                ::
+                              </button>
+                              <div className="category-row-main">
+                                <span>{category.name}</span>
+                                <small>{category.visible ? 'Visible' : 'Hidden'}</small>
+                              </div>
+                              <button
+                                type="button"
+                                className="danger-icon-button"
+                                aria-label={`Delete ${category.name}`}
+                                disabled={templateStatus === 'saving'}
+                                onClick={() => handleOpenCategoryDelete(category)}
+                              >
+                                X
+                              </button>
                             </div>
                           ))
                         )}
@@ -559,28 +748,15 @@ export default function SettingsPage({ onExit }) {
                         required
                       />
                     </div>
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label htmlFor="modalCategorySortOrder">Sort Order</label>
-                        <input
-                          id="modalCategorySortOrder"
-                          name="sortOrder"
-                          type="number"
-                          step="1"
-                          value={categoryForm.sortOrder}
-                          onChange={handleCategoryChange}
-                        />
-                      </div>
-                      <div className="settings-toggle template-toggle">
-                        <input
-                          id="modalCategoryVisible"
-                          name="visible"
-                          type="checkbox"
-                          checked={categoryForm.visible}
-                          onChange={handleCategoryChange}
-                        />
-                        <label htmlFor="modalCategoryVisible">Visible</label>
-                      </div>
+                    <div className="settings-toggle template-toggle">
+                      <input
+                        id="modalCategoryVisible"
+                        name="visible"
+                        type="checkbox"
+                        checked={categoryForm.visible}
+                        onChange={handleCategoryChange}
+                      />
+                      <label htmlFor="modalCategoryVisible">Visible</label>
                     </div>
                     <div className="settings-modal-actions">
                       <button type="button" className="back-button" onClick={handleCloseCategoryModal}>
@@ -588,6 +764,80 @@ export default function SettingsPage({ onExit }) {
                       </button>
                       <button type="submit" className="next-button" disabled={templateStatus === 'saving'}>
                         {templateStatus === 'saving' ? 'Creating...' : 'Create Category'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {categoryDeleteTarget && (
+                <div className="settings-modal-backdrop" role="presentation">
+                  <form className="settings-form settings-modal" onSubmit={handleDeleteCategory}>
+                    <div className="settings-modal-header">
+                      <h3>Delete Category?</h3>
+                      <button type="button" className="modal-close-button" onClick={handleCloseCategoryDelete}>
+                        X
+                      </button>
+                    </div>
+                    <div className="delete-confirmation-copy">
+                      <p><strong>Category:</strong> {categoryDeleteTarget.name}</p>
+                      <p>This category contains {categoryTemplateCounts[categoryDeleteTarget.id] || 0} templates.</p>
+                      <p>What would you like to do?</p>
+                    </div>
+                    <div className="delete-choice-group">
+                      <label>
+                        <input
+                          type="radio"
+                          name="categoryDeleteAction"
+                          value="move"
+                          checked={categoryDeleteAction === 'move'}
+                          onChange={(event) => setCategoryDeleteAction(event.target.value)}
+                        />
+                        Move templates to Uncategorized
+                      </label>
+                      <label>
+                        <input
+                          type="radio"
+                          name="categoryDeleteAction"
+                          value="delete"
+                          checked={categoryDeleteAction === 'delete'}
+                          onChange={(event) => setCategoryDeleteAction(event.target.value)}
+                        />
+                        Delete all templates in this category
+                      </label>
+                    </div>
+                    <div className="settings-modal-actions">
+                      <button type="button" className="back-button" onClick={handleCloseCategoryDelete}>
+                        Cancel
+                      </button>
+                      <button type="submit" className="danger-button" disabled={templateStatus === 'saving'}>
+                        {templateStatus === 'saving' ? 'Deleting...' : 'Delete'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {templateDeleteTarget && (
+                <div className="settings-modal-backdrop" role="presentation">
+                  <form className="settings-form settings-modal" onSubmit={handleDeleteTemplate}>
+                    <div className="settings-modal-header">
+                      <h3>Delete Template?</h3>
+                      <button type="button" className="modal-close-button" onClick={() => setTemplateDeleteTarget(null)}>
+                        X
+                      </button>
+                    </div>
+                    <div className="delete-confirmation-copy">
+                      <p><strong>{templateDeleteTarget.templateNumber}</strong></p>
+                      <p>{templateDeleteTarget.title}</p>
+                      <p>This cannot be undone.</p>
+                    </div>
+                    <div className="settings-modal-actions">
+                      <button type="button" className="back-button" onClick={() => setTemplateDeleteTarget(null)}>
+                        Cancel
+                      </button>
+                      <button type="submit" className="danger-button" disabled={templateStatus === 'saving'}>
+                        {templateStatus === 'saving' ? 'Deleting...' : 'Delete'}
                       </button>
                     </div>
                   </form>
@@ -604,7 +854,7 @@ export default function SettingsPage({ onExit }) {
                   >
                     <option value="all">All categories</option>
                     <option value="uncategorized">Uncategorized</option>
-                    {templateLibrary.categories.map(category => (
+                    {userCategories.map(category => (
                       <option key={category.id} value={category.id}>
                         {category.name}
                       </option>
@@ -662,6 +912,14 @@ export default function SettingsPage({ onExit }) {
                             Featured
                           </label>
                         </div>
+                        <button
+                          type="button"
+                          className="template-delete-button"
+                          disabled={templateStatus === 'saving'}
+                          onClick={() => setTemplateDeleteTarget(template)}
+                        >
+                          Delete Template
+                        </button>
                       </div>
                     </article>
                   ))

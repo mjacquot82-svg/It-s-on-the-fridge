@@ -16,6 +16,7 @@ function normalizeCategory(row) {
     name: row.name,
     sortOrder: row.sort_order,
     visible: row.visible,
+    isSystem: Boolean(row.is_system),
   };
 }
 
@@ -26,6 +27,7 @@ function normalizeTemplate(row) {
     title: row.title,
     categoryId: row.category_id,
     categoryName: row.template_categories?.name || '',
+    categoryIsSystem: Boolean(row.template_categories?.is_system),
     imageUrl: row.image_url,
     shape: row.shape === 'round' ? 'round' : 'rectangle',
     visible: row.visible,
@@ -58,12 +60,12 @@ export async function fetchCustomerTemplateLibrary() {
 
   const baseUrl = url.replace(/\/$/, '');
   const categoriesUrl = new URL(`${baseUrl}/rest/v1/template_categories`);
-  categoriesUrl.searchParams.set('select', 'id,name,sort_order,visible');
+  categoriesUrl.searchParams.set('select', 'id,name,sort_order,visible,is_system');
   categoriesUrl.searchParams.set('visible', 'eq.true');
   categoriesUrl.searchParams.set('order', 'sort_order.asc,name.asc');
 
   const templatesUrl = new URL(`${baseUrl}/rest/v1/magnet_templates`);
-  templatesUrl.searchParams.set('select', 'id,template_number,title,category_id,image_url,shape,visible,featured,created_at,template_categories(name)');
+  templatesUrl.searchParams.set('select', 'id,template_number,title,category_id,image_url,shape,visible,featured,created_at,template_categories(name,is_system)');
   templatesUrl.searchParams.set('visible', 'eq.true');
   templatesUrl.searchParams.set('order', 'featured.desc,created_at.desc');
 
@@ -73,7 +75,7 @@ export async function fetchCustomerTemplateLibrary() {
   ]);
 
   return {
-    categories: categories.map(normalizeCategory).filter(category => category.visible),
+    categories: categories.map(normalizeCategory).filter(category => category.visible && !category.isSystem),
     templates: templates.map(normalizeTemplate).filter(template => template.visible),
   };
 }

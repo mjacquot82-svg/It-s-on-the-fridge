@@ -20,6 +20,9 @@ create table if not exists public.magnet_templates (
   updated_at timestamptz not null default now()
 );
 
+alter table public.template_categories
+add column if not exists is_system boolean not null default false;
+
 alter table public.magnet_templates
 add column if not exists shape text not null default 'rectangle';
 
@@ -93,6 +96,10 @@ execute function public.set_template_library_updated_at();
 create index if not exists template_categories_sort_order_idx
 on public.template_categories (sort_order, name);
 
+create unique index if not exists template_categories_single_uncategorized_system_idx
+on public.template_categories (name)
+where is_system = true and name = 'Uncategorized';
+
 create index if not exists magnet_templates_category_id_idx
 on public.magnet_templates (category_id);
 
@@ -117,6 +124,10 @@ on public.magnet_templates
 for select
 to anon, authenticated
 using (visible = true);
+
+insert into public.template_categories (name, sort_order, visible, is_system)
+values ('Uncategorized', 0, false, true)
+on conflict do nothing;
 
 insert into storage.buckets (id, name, public)
 values ('ready-made-templates', 'ready-made-templates', true)

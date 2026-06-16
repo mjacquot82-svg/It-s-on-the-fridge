@@ -44,11 +44,36 @@ export function createMagnetTemplate(pin, template) {
   });
 }
 
+export function reorderTemplateCategories(pin, categoryIds) {
+  return postTemplateAdmin({
+    action: 'reorderCategories',
+    pin,
+    categoryIds,
+  });
+}
+
+export function deleteTemplateCategory(pin, categoryId, templateAction) {
+  return postTemplateAdmin({
+    action: 'deleteCategory',
+    pin,
+    categoryId,
+    templateAction,
+  });
+}
+
 export function updateMagnetTemplate(pin, template) {
   return postTemplateAdmin({
     action: 'updateTemplate',
     pin,
     ...template,
+  });
+}
+
+export function deleteMagnetTemplate(pin, templateId) {
+  return postTemplateAdmin({
+    action: 'deleteTemplate',
+    pin,
+    templateId,
   });
 }
 
