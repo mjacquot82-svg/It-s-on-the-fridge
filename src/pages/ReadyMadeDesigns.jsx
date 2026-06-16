@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import MagnetPreview from '../components/MagnetPreview';
 import {
   emptyCustomerTemplateLibrary,
   fetchCustomerTemplateLibrary,
@@ -30,6 +31,10 @@ function createReadyMadeOrder(cartItems, customerInfo) {
     })),
     totalQuantity: getTotalQuantity(cartItems),
   };
+}
+
+function getTemplateShape(template) {
+  return template.shape === 'round' ? 'round' : 'rectangle';
 }
 
 async function submitReadyMadeOrder(order, turnstileToken) {
@@ -209,6 +214,7 @@ export default function ReadyMadeDesigns({ onBack }) {
           templateNumber: selectedTemplate.templateNumber,
           title: selectedTemplate.title,
           imageUrl: selectedTemplate.imageUrl,
+          shape: getTemplateShape(selectedTemplate),
           quantity: selectedQuantity,
         },
       ];
@@ -328,7 +334,12 @@ export default function ReadyMadeDesigns({ onBack }) {
         className="ready-template-button"
         onClick={() => handleSelectTemplate(template)}
       >
-        <img src={template.imageUrl} alt={template.title} />
+        <MagnetPreview
+          imageUrl={template.imageUrl}
+          title={template.title}
+          shape={getTemplateShape(template)}
+          size="card"
+        />
         <span className="template-number">{template.templateNumber}</span>
         {template.featured && <span className="featured-badge">Featured</span>}
       </button>
@@ -341,7 +352,14 @@ export default function ReadyMadeDesigns({ onBack }) {
 
   const renderOrderItem = (item, allowEditing = false) => (
     <article className="ready-order-row" key={item.id || item.templateNumber}>
-      {item.imageUrl && <img src={item.imageUrl} alt={item.title} />}
+      {item.imageUrl && (
+        <MagnetPreview
+          imageUrl={item.imageUrl}
+          title={item.title}
+          shape={item.shape}
+          size="list"
+        />
+      )}
       <div>
         <strong>{item.title}</strong>
         <span>Template #{item.templateNumber}</span>
@@ -595,12 +613,20 @@ export default function ReadyMadeDesigns({ onBack }) {
             </button>
             <div>
               <h1>{selectedTemplate.title}</h1>
-              <p>Template #{selectedTemplate.templateNumber}</p>
+              <p>Preview Your Magnet</p>
             </div>
           </header>
 
           <section className="ready-template-detail">
-            <img src={selectedTemplate.imageUrl} alt={selectedTemplate.title} />
+            <div className="ready-template-product-stage">
+              <MagnetPreview
+                imageUrl={selectedTemplate.imageUrl}
+                title={selectedTemplate.title}
+                shape={getTemplateShape(selectedTemplate)}
+                size="detail"
+              />
+              <p>What you see is what you receive.</p>
+            </div>
             <div className="ready-template-detail-panel">
               <span className="detail-template-number">Template #{selectedTemplate.templateNumber}</span>
               <h2>{selectedTemplate.title}</h2>

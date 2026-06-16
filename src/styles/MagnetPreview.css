@@ -1,0 +1,88 @@
+.magnet-preview {
+  --magnet-radius: 18px;
+  width: 100%;
+  position: relative;
+  isolation: isolate;
+}
+
+.magnet-preview-shadow {
+  position: absolute;
+  inset: 7% 7% -5%;
+  background: rgba(11, 48, 72, 0.28);
+  border-radius: var(--magnet-radius);
+  filter: blur(16px);
+  transform: translateY(10px);
+  z-index: -1;
+}
+
+.magnet-preview-face {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0) 32%),
+    var(--color-surface);
+  border: 1px solid rgba(11, 48, 72, 0.22);
+  border-radius: var(--magnet-radius);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    inset 0 -8px 16px rgba(11, 48, 72, 0.08),
+    0 14px 26px rgba(11, 48, 72, 0.18);
+}
+
+.magnet-preview-face::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.42), transparent 34%),
+    radial-gradient(circle at 16% 12%, rgba(255, 255, 255, 0.36), transparent 24%);
+  pointer-events: none;
+}
+
+.magnet-preview-face img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.magnet-preview-card {
+  --magnet-radius: 14px;
+}
+
+.magnet-preview-card .magnet-preview-face {
+  aspect-ratio: 1 / 1;
+}
+
+.magnet-preview-detail {
+  --magnet-radius: 22px;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.magnet-preview-detail .magnet-preview-face {
+  aspect-ratio: 1 / 1;
+}
+
+.magnet-preview-list {
+  --magnet-radius: 10px;
+}
+
+.magnet-preview-list .magnet-preview-face {
+  aspect-ratio: 1 / 1;
+}
+
+.magnet-preview-round {
+  --magnet-radius: 50%;
+}
+
+.magnet-preview-round .magnet-preview-shadow,
+.magnet-preview-round .magnet-preview-face {
+  border-radius: 50%;
+}
+
+@media (max-width: 640px) {
+  .magnet-preview-detail {
+    --magnet-radius: 18px;
+  }
+}
