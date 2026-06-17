@@ -368,7 +368,8 @@ export default function ReadyMadeDesigns({ onBack }) {
           imageUrl={item.imageUrl}
           title={item.title}
           shape={item.shape}
-          size="list"
+          size="card"
+          className="ready-order-preview"
         />
       )}
       <div>
@@ -631,7 +632,7 @@ export default function ReadyMadeDesigns({ onBack }) {
                 imageUrl={selectedTemplate.imageUrl}
                 title={selectedTemplate.title}
                 shape={getTemplateShape(selectedTemplate)}
-                size="detail"
+                size="card"
               />
               <p>What you see is what you receive.</p>
             </div>

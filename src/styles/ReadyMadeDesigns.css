@@ -426,7 +426,7 @@
   padding: 12px;
 }
 
-.ready-order-row .magnet-preview-list {
+.ready-order-row .ready-order-preview {
   width: 104px;
 }
 
@@ -657,7 +657,7 @@
     grid-template-columns: 86px minmax(0, 1fr);
   }
 
-  .ready-order-row .magnet-preview-list {
+  .ready-order-row .ready-order-preview {
     width: 86px;
   }
 
