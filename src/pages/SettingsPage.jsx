@@ -7,10 +7,10 @@ import {
   deleteTemplateCategory,
   emptyTemplateLibrary,
   loadTemplateLibrary,
-  readImageAsDataUrl,
   reorderTemplateCategories,
   updateMagnetTemplate,
 } from '../utils/templateAdmin';
+import { optimizeImageFile } from '../utils/cropUtils';
 import '../styles/SettingsPage.css';
 
 const SETTINGS_PIN = '2468';
@@ -255,10 +255,10 @@ export default function SettingsPage({ onExit }) {
         throw new Error('Choose a category for this template.');
       }
 
-      const imageDataUrl = await readImageAsDataUrl(templateImageFile);
+      const optimizedImage = await optimizeImageFile(templateImageFile);
       const { template } = await createMagnetTemplate(pin, {
         ...templateForm,
-        imageDataUrl,
+        imageDataUrl: optimizedImage.dataUrl,
         fileName: templateImageFile.name,
       });
 
