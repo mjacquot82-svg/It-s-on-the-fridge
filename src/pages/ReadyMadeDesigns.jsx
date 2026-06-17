@@ -750,6 +750,12 @@ export default function ReadyMadeDesigns({ onBack }) {
             </div>
           </section>
         )}
+
+        <div className="ready-bottom-navigation">
+          <button type="button" className="ready-secondary-button ready-bottom-back-button" onClick={onBack}>
+            ← Back to Home
+          </button>
+        </div>
       </div>
     </div>
   );

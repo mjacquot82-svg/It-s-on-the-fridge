@@ -15,7 +15,7 @@ export default function WelcomeScreen({ onNext, onBrowseReadyMade }) {
         
         <h1>It's On The Fridge</h1>
         <p className="welcome-tagline">Turn your favorite photo into a custom fridge magnet.</p>
-        <p className="local-note">Custom photo magnets made locally by Jennifer Jacquot.</p>
+        <p className="local-note">Custom photo magnets made locally by the Jacquot family.</p>
 
         <div className="price-list">
           <div className="price-item">

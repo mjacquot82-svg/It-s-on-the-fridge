@@ -165,6 +165,17 @@
   margin-top: 24px;
 }
 
+.ready-bottom-navigation {
+  display: flex;
+  justify-content: center;
+  margin-top: 32px;
+  padding-bottom: 12px;
+}
+
+.ready-bottom-back-button {
+  min-width: min(100%, 260px);
+}
+
 .template-section h2 {
   color: var(--color-primary);
   font-size: 24px;
@@ -620,5 +631,13 @@
 
   .ready-order-actions {
     display: grid;
+  }
+
+  .ready-bottom-navigation {
+    display: grid;
+  }
+
+  .ready-bottom-back-button {
+    width: 100%;
   }
 }
