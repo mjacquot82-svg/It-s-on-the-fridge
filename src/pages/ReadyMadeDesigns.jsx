@@ -14,6 +14,12 @@ const emptyCustomerInfo = {
   email: '',
 };
 
+const galleryViewOptions = [
+  { id: 'large', label: 'Large View' },
+  { id: 'medium', label: 'Medium View' },
+  { id: 'compact', label: 'Compact View' },
+];
+
 function getTotalQuantity(cartItems) {
   return cartItems.reduce((total, item) => total + item.quantity, 0);
 }
@@ -71,6 +77,7 @@ export default function ReadyMadeDesigns({ onBack }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [captchaToken, setCaptchaToken] = useState('');
   const [captchaReady, setCaptchaReady] = useState(!turnstileSiteKey);
+  const [galleryView, setGalleryView] = useState('medium');
   const captchaRef = useRef(null);
   const widgetIdRef = useRef(null);
 
@@ -171,6 +178,7 @@ export default function ReadyMadeDesigns({ onBack }) {
   const standardTemplates = filteredTemplates.filter(template => !template.featured);
   const hasTemplates = filteredTemplates.length > 0;
   const totalQuantity = getTotalQuantity(cartItems);
+  const templateGridClassName = `ready-template-grid ready-template-grid-${galleryView}`;
 
   const resetCaptcha = () => {
     if (window.turnstile && widgetIdRef.current) {
@@ -715,6 +723,19 @@ export default function ReadyMadeDesigns({ onBack }) {
           ))}
         </div>
 
+        <div className="gallery-view-control" aria-label="Template gallery view">
+          {galleryViewOptions.map(option => (
+            <button
+              type="button"
+              className={galleryView === option.id ? 'gallery-view-button is-active' : 'gallery-view-button'}
+              key={option.id}
+              onClick={() => setGalleryView(option.id)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
         {status === 'loading' && (
           <div className="ready-made-message" role="status">
             Loading ready-made designs...
@@ -736,7 +757,7 @@ export default function ReadyMadeDesigns({ onBack }) {
         {status === 'ready' && featuredTemplates.length > 0 && (
           <section className="template-section">
             <h2>Featured</h2>
-            <div className="ready-template-grid">
+            <div className={templateGridClassName}>
               {featuredTemplates.map(renderTemplateCard)}
             </div>
           </section>
@@ -745,7 +766,7 @@ export default function ReadyMadeDesigns({ onBack }) {
         {status === 'ready' && standardTemplates.length > 0 && (
           <section className="template-section">
             <h2>{featuredTemplates.length > 0 ? 'More Designs' : 'Designs'}</h2>
-            <div className="ready-template-grid">
+            <div className={templateGridClassName}>
               {standardTemplates.map(renderTemplateCard)}
             </div>
           </section>

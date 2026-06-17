@@ -138,6 +138,32 @@
   color: var(--color-surface);
 }
 
+.gallery-view-control {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 22px;
+}
+
+.gallery-view-button {
+  min-width: 0;
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.2;
+  padding: 11px 10px;
+}
+
+.gallery-view-button:hover,
+.gallery-view-button.is-active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-surface);
+}
+
 .template-placeholder-message,
 .ready-made-message {
   background: var(--color-soft);
@@ -185,8 +211,19 @@
 
 .ready-template-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 20px;
+}
+
+.ready-template-grid-large {
+  grid-template-columns: 1fr;
+}
+
+.ready-template-grid-medium {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ready-template-grid-compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .ready-template-card {
@@ -203,7 +240,7 @@
   background: transparent;
   border: 0;
   border-radius: 0;
-  padding: 18px;
+  padding: 0;
   position: relative;
 }
 
@@ -299,7 +336,7 @@
   border: 0;
   border-radius: 0;
   box-shadow: none;
-  padding: clamp(22px, 4vw, 42px);
+  padding: 0;
   text-align: center;
 }
 
@@ -570,18 +607,29 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .gallery-view-control {
+    grid-template-columns: 1fr;
+  }
+
   .filter-chip {
     min-width: 0;
     padding: 10px;
   }
 
   .ready-template-grid {
-    grid-template-columns: 1fr;
     gap: 12px;
   }
 
-  .ready-template-button {
-    padding: 16px;
+  .ready-template-grid-large {
+    grid-template-columns: 1fr;
+  }
+
+  .ready-template-grid-medium {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ready-template-grid-compact {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .ready-template-body {
