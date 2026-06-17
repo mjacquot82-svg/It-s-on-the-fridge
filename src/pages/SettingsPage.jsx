@@ -685,6 +685,7 @@ export default function SettingsPage({ onExit }) {
                         Create Category
                       </button>
 
+                      <p className="category-reorder-help">Drag categories to change their order.</p>
                       <div className="category-list" aria-label="Template categories">
                         {userCategories.length === 0 ? (
                           <p>No categories yet.</p>
@@ -705,7 +706,7 @@ export default function SettingsPage({ onExit }) {
                                 onPointerUp={handleCategoryDragEnd}
                                 onPointerCancel={handleCategoryDragEnd}
                               >
-                                ::
+                                ⋮⋮
                               </button>
                               <div className="category-row-main">
                                 <span>{category.name}</span>

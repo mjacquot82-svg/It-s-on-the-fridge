@@ -249,6 +249,14 @@
   margin: 0;
 }
 
+.category-reorder-help {
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 18px 0 0;
+}
+
 .category-row {
   align-items: center;
   background: var(--color-soft);
@@ -282,9 +290,10 @@
   background: var(--color-surface);
   color: var(--color-primary);
   cursor: grab;
-  font-size: 18px;
+  font-size: 21px;
   font-weight: 900;
   letter-spacing: 0;
+  line-height: 1;
 }
 
 .category-drag-handle:active {
