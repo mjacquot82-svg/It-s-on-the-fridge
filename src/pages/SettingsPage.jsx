@@ -653,9 +653,11 @@ export default function SettingsPage({ onExit }) {
                   <button
                     type="button"
                     className="manage-categories-button"
+                    aria-expanded={isCategoryManagementOpen}
                     onClick={() => setIsCategoryManagementOpen(prev => !prev)}
                   >
-                    {isCategoryManagementOpen ? 'Hide Categories' : 'Manage Categories'}
+                    <span>{isCategoryManagementOpen ? 'Hide Categories' : 'Manage Categories'}</span>
+                    <span aria-hidden="true">{isCategoryManagementOpen ? '▲' : '▼'}</span>
                   </button>
 
                   {isCategoryManagementOpen && (

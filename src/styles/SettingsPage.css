@@ -208,12 +208,16 @@
 }
 
 .manage-categories-button {
+  align-items: center;
   width: fit-content;
   background: var(--color-surface);
   border: 2px solid var(--color-border);
   color: var(--color-primary);
+  display: inline-flex;
   font-size: 14px;
   font-weight: 800;
+  gap: 8px;
+  justify-content: center;
   padding: 10px 14px;
 }
 
