@@ -18,25 +18,10 @@
 .magnet-preview-face {
   position: relative;
   overflow: hidden;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0) 32%),
-    var(--color-surface);
-  border: 1px solid rgba(11, 48, 72, 0.22);
+  background: transparent;
+  border: 0;
   border-radius: var(--magnet-radius);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.85),
-    inset 0 -8px 16px rgba(11, 48, 72, 0.08),
-    0 14px 26px rgba(11, 48, 72, 0.18);
-}
-
-.magnet-preview-face::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.42), transparent 34%),
-    radial-gradient(circle at 16% 12%, rgba(255, 255, 255, 0.36), transparent 24%);
-  pointer-events: none;
+  box-shadow: 0 14px 26px rgba(11, 48, 72, 0.16);
 }
 
 .magnet-preview-face img {
@@ -72,6 +57,10 @@
   aspect-ratio: 1 / 1;
 }
 
+.magnet-preview-rectangle .magnet-preview-face {
+  aspect-ratio: 2 / 3;
+}
+
 .magnet-preview-round {
   --magnet-radius: 50%;
   width: min(100%, 86%);
@@ -81,16 +70,6 @@
 .magnet-preview-round .magnet-preview-shadow,
 .magnet-preview-round .magnet-preview-face {
   border-radius: 50%;
-}
-
-.magnet-preview-round::before {
-  content: "";
-  position: absolute;
-  inset: -8%;
-  background: rgba(255, 255, 255, 0.62);
-  border: 1px dashed rgba(11, 48, 72, 0.16);
-  border-radius: 50%;
-  z-index: -2;
 }
 
 @media (max-width: 640px) {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useOrder } from '../context/useOrder';
+import MagnetPreview from '../components/MagnetPreview';
 import {
   createMagnetTemplate,
   createTemplateCategory,
@@ -874,7 +875,12 @@ export default function SettingsPage({ onExit }) {
                 ) : (
                   filteredTemplates.map(template => (
                     <article className="template-card" key={template.id}>
-                      <img src={template.imageUrl} alt={template.title} />
+                      <MagnetPreview
+                        imageUrl={template.imageUrl}
+                        title={template.title}
+                        shape={template.shape}
+                        size="card"
+                      />
                       <div className="template-card-body">
                         <div className="template-card-heading">
                           <strong>{template.templateNumber}</strong>
