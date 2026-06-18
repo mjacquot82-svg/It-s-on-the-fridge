@@ -17,7 +17,11 @@ export default function MagnetPreview({
   return (
     <div className={previewClassName}>
       <div className="magnet-preview-face">
-        <img src={imageUrl} alt={title} />
+        <img
+          src={imageUrl}
+          alt={title}
+          loading="lazy"
+        />
       </div>
     </div>
   );
