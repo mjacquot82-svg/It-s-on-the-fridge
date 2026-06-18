@@ -32,6 +32,11 @@ export default function OrderSubmitted({ onRestart }) {
         <p className="confirmation-message">
           Jennifer will contact you to confirm pickup and payment.
         </p>
+        {order.emailDelivery?.emailStatus === 'email_failed' && (
+          <p className="stored-image-note">
+            Your order was received, but the email notification may need manual follow-up.
+          </p>
+        )}
 
         <div className="order-summary">
           <h2>Order Summary</h2>

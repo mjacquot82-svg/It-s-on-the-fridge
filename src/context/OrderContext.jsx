@@ -319,6 +319,9 @@ export function OrderProvider({ children }) {
     // Store both the order and email payload
     const storedOrder = {
       ...newOrder,
+      clientOrderId: newOrder.id,
+      id: emailDelivery.publicOrderNumber || newOrder.id,
+      durableOrderId: emailDelivery.orderId || null,
       emailPayload,
       emailDelivery,
     };

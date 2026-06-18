@@ -1,7 +1,11 @@
-/* global process */
+/* global process, Buffer */
 
 const RESEND_API_URL = 'https://api.resend.com/emails';
 const TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+const ORDERS_TABLE = 'orders';
+const ORDER_ITEMS_TABLE = 'order_items';
+const ORDER_IMAGES_TABLE = 'order_images';
+const ORDER_IMAGES_BUCKET = 'order-images';
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const MAX_ORIGINAL_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_CROPPED_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -59,6 +63,113 @@ function getDecodedBase64Bytes(base64Value) {
   return Math.floor((base64Value.length * 3) / 4) - padding;
 }
 
+function getSupabaseConfig() {
+  return {
+    url: process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  };
+}
+
+function getSupabaseHeaders(serviceRoleKey) {
+  return {
+    apikey: serviceRoleKey,
+    Authorization: `Bearer ${serviceRoleKey}`,
+  };
+}
+
+function getFileExtension(contentType) {
+  if (contentType === 'image/png') {
+    return 'png';
+  }
+
+  if (contentType === 'image/webp') {
+    return 'webp';
+  }
+
+  return 'jpg';
+}
+
+function createPublicOrderNumber() {
+  const datePart = new Date().toISOString().slice(0, 10).replaceAll('-', '');
+  const randomPart = crypto.randomUUID().split('-')[0].toUpperCase();
+  return `IOF-${datePart}-${randomPart}`;
+}
+
+function getOrderType(order) {
+  return order.orderType === 'ready-made' ? 'ready_made' : 'custom_photo';
+}
+
+function getCustomerName(order) {
+  if (order.orderType === 'ready-made') {
+    return order.customerInfo.name.trim();
+  }
+
+  return `${order.customerInfo.firstName} ${order.customerInfo.lastName}`.trim();
+}
+
+function sanitizeCustomOrderPayload(order) {
+  return {
+    id: order.id,
+    submittedAt: order.submittedAt,
+    magnetType: order.magnetType === 'round' ? 'round' : 'rectangle',
+    crop: order.crop || null,
+    croppedAreaPixels: order.croppedAreaPixels || null,
+    zoom: order.zoom || null,
+    cropVerification: order.cropVerification || null,
+    customerInfo: order.customerInfo,
+  };
+}
+
+function sanitizeReadyMadeOrderPayload(order) {
+  return {
+    id: order.id,
+    submittedAt: order.submittedAt,
+    orderType: order.orderType,
+    customerInfo: order.customerInfo,
+    readyMadeItems: order.readyMadeItems.map(item => ({
+      templateNumber: item.templateNumber,
+      title: item.title,
+      quantity: item.quantity,
+      imageUrl: item.imageUrl || null,
+    })),
+    totalQuantity: order.totalQuantity,
+  };
+}
+
+function buildOrderRecord(order, publicOrderNumber) {
+  const isReadyMadeOrder = order.orderType === 'ready-made';
+  const customerInfo = order.customerInfo;
+  const totalQuantity = isReadyMadeOrder
+    ? Number(order.totalQuantity)
+    : Number(customerInfo.quantity);
+
+  return {
+    public_order_number: publicOrderNumber,
+    order_type: getOrderType(order),
+    email_status: 'received',
+    customer_name: getCustomerName(order),
+    customer_first_name: isReadyMadeOrder ? null : customerInfo.firstName,
+    customer_last_name: isReadyMadeOrder ? null : customerInfo.lastName,
+    customer_email: customerInfo.email,
+    customer_phone: customerInfo.phone,
+    customer_notes: isReadyMadeOrder ? null : customerInfo.notes || null,
+    total_quantity: totalQuantity,
+    magnet_type: isReadyMadeOrder ? null : (order.magnetType === 'round' ? 'round' : 'rectangle'),
+    order_payload: isReadyMadeOrder ? sanitizeReadyMadeOrderPayload(order) : sanitizeCustomOrderPayload(order),
+    submitted_at: order.submittedAt || new Date().toISOString(),
+  };
+}
+
+function buildReadyMadeItemRows(orderId, order) {
+  return order.readyMadeItems.map(item => ({
+    order_id: orderId,
+    template_number: item.templateNumber,
+    template_title: item.title,
+    template_image_url: item.imageUrl || null,
+    quantity: Number(item.quantity),
+  }));
+}
+
 function parseDataUrl(dataUrl, fallbackName, maxBytes) {
   if (!dataUrl || typeof dataUrl !== 'string') {
     throw createHttpError(`Missing ${fallbackName}`, 400);
@@ -84,10 +195,135 @@ function parseDataUrl(dataUrl, fallbackName, maxBytes) {
 
   return {
     content,
+    buffer: Buffer.from(content, 'base64'),
     filename: `${fallbackName}.${extension}`,
     contentType: mimeType,
     sizeBytes,
   };
+}
+
+async function fetchSupabaseJson(url, options, fallbackError) {
+  const response = await fetch(url, options);
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw createHttpError(data?.message || data?.error || fallbackError, response.status || 500);
+  }
+
+  return data;
+}
+
+async function createDurableOrder(supabaseUrl, serviceRoleKey, order) {
+  const baseUrl = supabaseUrl.replace(/\/$/, '');
+  const publicOrderNumber = createPublicOrderNumber();
+  const endpoint = `${baseUrl}/rest/v1/${ORDERS_TABLE}?select=id,public_order_number,email_status`;
+  const rows = await fetchSupabaseJson(endpoint, {
+    method: 'POST',
+    headers: {
+      ...getSupabaseHeaders(serviceRoleKey),
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify(buildOrderRecord(order, publicOrderNumber)),
+  }, 'Unable to save order before sending email.');
+
+  if (!rows[0]?.id) {
+    throw createHttpError('Supabase did not return a saved order id.', 500);
+  }
+
+  return {
+    id: rows[0].id,
+    publicOrderNumber: rows[0].public_order_number,
+    emailStatus: rows[0].email_status,
+  };
+}
+
+async function updateOrderEmailStatus(supabaseUrl, serviceRoleKey, orderId, patch) {
+  const baseUrl = supabaseUrl.replace(/\/$/, '');
+  const endpoint = new URL(`${baseUrl}/rest/v1/${ORDERS_TABLE}`);
+  endpoint.searchParams.set('id', `eq.${orderId}`);
+
+  await fetchSupabaseJson(endpoint, {
+    method: 'PATCH',
+    headers: {
+      ...getSupabaseHeaders(serviceRoleKey),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(patch),
+  }, 'Unable to update order email status.');
+}
+
+async function insertOrderItems(supabaseUrl, serviceRoleKey, orderId, order) {
+  const rows = buildReadyMadeItemRows(orderId, order);
+
+  if (rows.length === 0) {
+    return;
+  }
+
+  const baseUrl = supabaseUrl.replace(/\/$/, '');
+  await fetchSupabaseJson(`${baseUrl}/rest/v1/${ORDER_ITEMS_TABLE}`, {
+    method: 'POST',
+    headers: {
+      ...getSupabaseHeaders(serviceRoleKey),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(rows),
+  }, 'Unable to save ready-made order items.');
+}
+
+async function uploadOrderImage(supabaseUrl, serviceRoleKey, orderId, imageType, image) {
+  const baseUrl = supabaseUrl.replace(/\/$/, '');
+  const extension = getFileExtension(image.contentType);
+  const fileName = imageType === 'original' ? `original.${extension}` : `print-ready.${extension}`;
+  const objectPath = `orders/${orderId}/${fileName}`;
+  const uploadUrl = `${baseUrl}/storage/v1/object/${ORDER_IMAGES_BUCKET}/${objectPath}`;
+  const response = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      ...getSupabaseHeaders(serviceRoleKey),
+      'Content-Type': image.contentType,
+      'x-upsert': 'false',
+    },
+    body: image.buffer,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw createHttpError(errorText || `Unable to upload ${imageType} order image.`, response.status || 500);
+  }
+
+  return {
+    order_id: orderId,
+    image_type: imageType,
+    bucket: ORDER_IMAGES_BUCKET,
+    object_path: objectPath,
+    content_type: image.contentType,
+    size_bytes: image.sizeBytes,
+  };
+}
+
+async function insertOrderImages(supabaseUrl, serviceRoleKey, imageRows) {
+  if (imageRows.length === 0) {
+    return;
+  }
+
+  const baseUrl = supabaseUrl.replace(/\/$/, '');
+  await fetchSupabaseJson(`${baseUrl}/rest/v1/${ORDER_IMAGES_TABLE}`, {
+    method: 'POST',
+    headers: {
+      ...getSupabaseHeaders(serviceRoleKey),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(imageRows),
+  }, 'Unable to save order image records.');
+}
+
+async function saveCustomOrderImages(supabaseUrl, serviceRoleKey, orderId, originalImage, croppedImage) {
+  const imageRows = [];
+
+  imageRows.push(await uploadOrderImage(supabaseUrl, serviceRoleKey, orderId, 'original', originalImage));
+  imageRows.push(await uploadOrderImage(supabaseUrl, serviceRoleKey, orderId, 'print_ready', croppedImage));
+  await insertOrderImages(supabaseUrl, serviceRoleKey, imageRows);
 }
 
 async function runUpstashCommand(command) {
@@ -212,7 +448,10 @@ function buildReadyMadeHtml(order) {
   const { customerInfo } = order;
   const submittedAt = new Date(order.submittedAt).toLocaleString();
   const orderItems = order.readyMadeItems.map(item => (
-    `<li>${escapeHtml(item.templateNumber)} ${escapeHtml(item.title)} x ${escapeHtml(item.quantity)}</li>`
+    `<li>
+      ${escapeHtml(item.templateNumber)} ${escapeHtml(item.title)} x ${escapeHtml(item.quantity)}
+      ${item.imageUrl ? `<br><a href="${escapeHtml(item.imageUrl)}">Template image</a>` : ''}
+    </li>`
   )).join('');
 
   return `
@@ -277,7 +516,7 @@ function buildReadyMadeText(order) {
   const { customerInfo } = order;
   const submittedAt = new Date(order.submittedAt).toLocaleString();
   const orderItems = order.readyMadeItems.map(item => (
-    `${item.templateNumber} ${item.title} x ${item.quantity}`
+    `${item.templateNumber} ${item.title} x ${item.quantity}${item.imageUrl ? `\n  Template image: ${item.imageUrl}` : ''}`
   ));
 
   return [
@@ -396,13 +635,8 @@ export default async function handler(req, res) {
   const apiKey = process.env.RESEND_API_KEY;
   const to = process.env.JENNIFER_EMAIL;
   const from = process.env.RESEND_FROM_EMAIL;
+  const { url: supabaseUrl, serviceRoleKey } = getSupabaseConfig();
   const clientIp = getClientIp(req);
-
-  if (!apiKey || !to || !from) {
-    return sendJson(res, 500, {
-      error: 'Email delivery is not configured. Missing RESEND_API_KEY, JENNIFER_EMAIL, or RESEND_FROM_EMAIL.',
-    });
-  }
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
@@ -421,10 +655,12 @@ export default async function handler(req, res) {
     const customerName = isReadyMadeOrder
       ? order.customerInfo.name.trim()
       : `${order.customerInfo.firstName} ${order.customerInfo.lastName}`.trim();
+    let originalImage = null;
+    let croppedImage = null;
 
     if (!isReadyMadeOrder) {
-      const originalImage = parseDataUrl(order.photo, `order-${order.id}-original`, MAX_ORIGINAL_IMAGE_BYTES);
-      const croppedImage = parseDataUrl(order.croppedImage, `order-${order.id}-print`, MAX_CROPPED_IMAGE_BYTES);
+      originalImage = parseDataUrl(order.photo, `order-${order.id}-original`, MAX_ORIGINAL_IMAGE_BYTES);
+      croppedImage = parseDataUrl(order.croppedImage, `order-${order.id}-print`, MAX_CROPPED_IMAGE_BYTES);
 
       if (originalImage.sizeBytes + croppedImage.sizeBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
         throw createHttpError('Order images are too large. Please upload a smaller photo and try again.', 413);
@@ -444,35 +680,157 @@ export default async function handler(req, res) {
       );
     }
 
-    const response = await fetch(RESEND_API_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from,
-        to,
-        reply_to: order.customerInfo.email,
-        subject: `${isReadyMadeOrder ? 'New Ready-Made Magnet Order' : 'New Magnet Order'} - ${customerName || order.id}`,
-        html: buildHtml(order),
-        text: buildText(order),
-        ...(attachments.length > 0 ? { attachments } : {}),
-      }),
-    });
+    let durableOrder = null;
+    let durableOrderSaved = false;
 
-    const data = await response.json().catch(() => ({}));
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.warn('Durable order storage is not configured; falling back to email-only order delivery.');
+    } else {
+      try {
+        durableOrder = await createDurableOrder(supabaseUrl, serviceRoleKey, order);
 
-    if (!response.ok) {
-      return sendJson(res, response.status, {
-        error: data.message || 'Resend could not deliver the order email.',
+        if (isReadyMadeOrder) {
+          await insertOrderItems(supabaseUrl, serviceRoleKey, durableOrder.id, order);
+        } else {
+          await saveCustomOrderImages(supabaseUrl, serviceRoleKey, durableOrder.id, originalImage, croppedImage);
+        }
+
+        await updateOrderEmailStatus(supabaseUrl, serviceRoleKey, durableOrder.id, {
+          email_status: 'email_pending',
+          email_error: null,
+        });
+        durableOrderSaved = true;
+      } catch (error) {
+        console.warn('Durable order storage failed; falling back to email-only order delivery.', {
+          error: error.message || 'Unknown durable order storage error.',
+        });
+
+        if (durableOrder?.id) {
+          await updateOrderEmailStatus(supabaseUrl, serviceRoleKey, durableOrder.id, {
+            email_status: 'email_failed',
+            email_error: error.message || 'Unable to finish durable order storage.',
+          }).catch(() => {});
+        }
+
+        durableOrder = null;
+      }
+    }
+
+    if (!apiKey || !to || !from) {
+      const emailError = 'Email delivery is not configured. Missing RESEND_API_KEY, JENNIFER_EMAIL, or RESEND_FROM_EMAIL.';
+      if (durableOrderSaved) {
+        await updateOrderEmailStatus(supabaseUrl, serviceRoleKey, durableOrder.id, {
+          email_status: 'email_failed',
+          email_error: emailError,
+        });
+
+        return sendJson(res, 200, {
+          orderId: durableOrder.id,
+          publicOrderNumber: durableOrder.publicOrderNumber,
+          emailStatus: 'email_failed',
+          durableOrderSaved: true,
+        });
+      }
+
+      return sendJson(res, 500, {
+        error: `${emailError} Durable order storage was unavailable, so this order was not saved.`,
+        durableOrderSaved: false,
       });
     }
 
+    const emailOrder = {
+      ...order,
+      clientOrderId: order.id,
+      id: durableOrderSaved ? durableOrder.publicOrderNumber : order.id,
+      durableOrderId: durableOrderSaved ? durableOrder.id : null,
+    };
+
+    let response;
+    let data = {};
+
+    try {
+      response = await fetch(RESEND_API_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from,
+          to,
+          reply_to: order.customerInfo.email,
+          subject: `${isReadyMadeOrder ? 'New Ready-Made Magnet Order' : 'New Magnet Order'} - ${customerName || emailOrder.id}`,
+          html: buildHtml(emailOrder),
+          text: buildText(emailOrder),
+          ...(attachments.length > 0 ? { attachments } : {}),
+        }),
+      });
+
+      data = await response.json().catch(() => ({}));
+    } catch (error) {
+      if (durableOrderSaved) {
+        await updateOrderEmailStatus(supabaseUrl, serviceRoleKey, durableOrder.id, {
+          email_status: 'email_failed',
+          email_error: error.message || 'Unable to reach Resend.',
+        });
+
+        return sendJson(res, 200, {
+          orderId: durableOrder.id,
+          publicOrderNumber: durableOrder.publicOrderNumber,
+          emailStatus: 'email_failed',
+          durableOrderSaved: true,
+        });
+      }
+
+      return sendJson(res, 502, {
+        error: `Unable to reach Resend, and durable order storage was unavailable. ${error.message || ''}`.trim(),
+        durableOrderSaved: false,
+      });
+    }
+
+    if (!response.ok) {
+      const emailError = data.message || 'Resend could not deliver the order email.';
+      if (durableOrderSaved) {
+        await updateOrderEmailStatus(supabaseUrl, serviceRoleKey, durableOrder.id, {
+          email_status: 'email_failed',
+          email_error: emailError,
+        });
+
+        return sendJson(res, 200, {
+          orderId: durableOrder.id,
+          publicOrderNumber: durableOrder.publicOrderNumber,
+          emailStatus: 'email_failed',
+          durableOrderSaved: true,
+        });
+      }
+
+      return sendJson(res, response.status, {
+        error: `${emailError} Durable order storage was unavailable, so this order was not saved.`,
+        durableOrderSaved: false,
+      });
+    }
+
+    if (!durableOrderSaved) {
+      return sendJson(res, 200, {
+        id: data.id,
+        provider: 'resend',
+        sentAt: new Date().toISOString(),
+        durableOrderSaved: false,
+        emailStatus: 'email_sent',
+      });
+    }
+
+    await updateOrderEmailStatus(supabaseUrl, serviceRoleKey, durableOrder.id, {
+      email_status: 'email_sent',
+      resend_message_id: data.id || null,
+      email_error: null,
+    });
+
     return sendJson(res, 200, {
-      id: data.id,
-      provider: 'resend',
-      sentAt: new Date().toISOString(),
+      orderId: durableOrder.id,
+      publicOrderNumber: durableOrder.publicOrderNumber,
+      emailStatus: 'email_sent',
+      durableOrderSaved: true,
     });
   } catch (error) {
     return sendJson(res, error.statusCode || 400, {

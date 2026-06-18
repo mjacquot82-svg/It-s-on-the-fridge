@@ -34,6 +34,7 @@ function createReadyMadeOrder(cartItems, customerInfo) {
       templateNumber: item.templateNumber,
       title: item.title,
       quantity: item.quantity,
+      imageUrl: item.imageUrl || null,
     })),
     totalQuantity: getTotalQuantity(cartItems),
   };
@@ -314,7 +315,13 @@ export default function ReadyMadeDesigns({ onBack }) {
 
     try {
       const emailDelivery = await submitReadyMadeOrder(order, captchaToken || null);
-      setSubmittedOrder({ ...order, emailDelivery });
+      setSubmittedOrder({
+        ...order,
+        clientOrderId: order.id,
+        id: emailDelivery.publicOrderNumber || order.id,
+        durableOrderId: emailDelivery.orderId || null,
+        emailDelivery,
+      });
       setCartItems([]);
       setSelectedTemplate(null);
       setSelectedQuantity(1);
@@ -415,6 +422,11 @@ export default function ReadyMadeDesigns({ onBack }) {
           <p className="ready-confirmation-message">
             Jennifer will contact you to confirm pickup and payment.
           </p>
+          {submittedOrder.emailDelivery?.emailStatus === 'email_failed' && (
+            <div className="ready-made-message">
+              Your order was received, but the email notification may need manual follow-up.
+            </div>
+          )}
 
           <section className="ready-summary-panel">
             <h2>Customer Details</h2>
