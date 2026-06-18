@@ -1,4 +1,4 @@
-create table if not exists public.orders (
+create table if not exists public.fridge_orders (
   id uuid primary key default gen_random_uuid(),
   public_order_number text not null unique,
   order_type text not null check (order_type in ('custom_photo', 'ready_made')),
@@ -19,9 +19,9 @@ create table if not exists public.orders (
   updated_at timestamptz not null default now()
 );
 
-create table if not exists public.order_items (
+create table if not exists public.fridge_order_items (
   id uuid primary key default gen_random_uuid(),
-  order_id uuid not null references public.orders(id) on delete cascade,
+  order_id uuid not null references public.fridge_orders(id) on delete cascade,
   template_number text not null,
   template_title text not null,
   template_image_url text,
@@ -29,9 +29,9 @@ create table if not exists public.order_items (
   created_at timestamptz not null default now()
 );
 
-create table if not exists public.order_images (
+create table if not exists public.fridge_order_images (
   id uuid primary key default gen_random_uuid(),
-  order_id uuid not null references public.orders(id) on delete cascade,
+  order_id uuid not null references public.fridge_orders(id) on delete cascade,
   image_type text not null check (image_type in ('original', 'print_ready')),
   bucket text not null,
   object_path text not null,
@@ -40,7 +40,7 @@ create table if not exists public.order_images (
   created_at timestamptz not null default now()
 );
 
-create or replace function public.set_orders_updated_at()
+create or replace function public.set_fridge_orders_updated_at()
 returns trigger
 language plpgsql
 as $$
@@ -50,30 +50,30 @@ begin
 end;
 $$;
 
-drop trigger if exists set_orders_updated_at on public.orders;
+drop trigger if exists set_fridge_orders_updated_at on public.fridge_orders;
 
-create trigger set_orders_updated_at
-before update on public.orders
+create trigger set_fridge_orders_updated_at
+before update on public.fridge_orders
 for each row
-execute function public.set_orders_updated_at();
+execute function public.set_fridge_orders_updated_at();
 
-create index if not exists orders_email_status_idx
-on public.orders (email_status, created_at desc);
+create index if not exists fridge_orders_email_status_idx
+on public.fridge_orders (email_status, created_at desc);
 
-create index if not exists orders_customer_email_idx
-on public.orders (customer_email);
+create index if not exists fridge_orders_customer_email_idx
+on public.fridge_orders (customer_email);
 
-create index if not exists order_items_order_id_idx
-on public.order_items (order_id);
+create index if not exists fridge_order_items_order_id_idx
+on public.fridge_order_items (order_id);
 
-create index if not exists order_images_order_id_idx
-on public.order_images (order_id);
+create index if not exists fridge_order_images_order_id_idx
+on public.fridge_order_images (order_id);
 
-alter table public.orders enable row level security;
-alter table public.order_items enable row level security;
-alter table public.order_images enable row level security;
+alter table public.fridge_orders enable row level security;
+alter table public.fridge_order_items enable row level security;
+alter table public.fridge_order_images enable row level security;
 
 insert into storage.buckets (id, name, public)
-values ('order-images', 'order-images', false)
+values ('fridge-order-images', 'fridge-order-images', false)
 on conflict (id) do update
 set public = false;

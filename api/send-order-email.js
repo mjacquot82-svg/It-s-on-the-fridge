@@ -2,10 +2,10 @@
 
 const RESEND_API_URL = 'https://api.resend.com/emails';
 const TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
-const ORDERS_TABLE = 'orders';
-const ORDER_ITEMS_TABLE = 'order_items';
-const ORDER_IMAGES_TABLE = 'order_images';
-const ORDER_IMAGES_BUCKET = 'order-images';
+const ORDERS_TABLE = 'fridge_orders';
+const ORDER_ITEMS_TABLE = 'fridge_order_items';
+const ORDER_IMAGES_TABLE = 'fridge_order_images';
+const ORDER_IMAGES_BUCKET = 'fridge-order-images';
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const MAX_ORIGINAL_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_CROPPED_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -275,7 +275,7 @@ async function uploadOrderImage(supabaseUrl, serviceRoleKey, orderId, imageType,
   const baseUrl = supabaseUrl.replace(/\/$/, '');
   const extension = getFileExtension(image.contentType);
   const fileName = imageType === 'original' ? `original.${extension}` : `print-ready.${extension}`;
-  const objectPath = `orders/${orderId}/${fileName}`;
+  const objectPath = `fridge-orders/${orderId}/${fileName}`;
   const uploadUrl = `${baseUrl}/storage/v1/object/${ORDER_IMAGES_BUCKET}/${objectPath}`;
   const response = await fetch(uploadUrl, {
     method: 'POST',
