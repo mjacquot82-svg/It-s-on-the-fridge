@@ -96,6 +96,7 @@ function normalizeTemplate(row) {
     shape: normalizeTemplateShape(row.shape),
     visible: row.visible,
     featured: row.featured,
+    displayOrder: row.display_order,
     createdAt: row.created_at,
   };
 }
@@ -119,8 +120,8 @@ async function loadTemplateLibrary(supabaseUrl, serviceRoleKey) {
   categoriesUrl.searchParams.set('order', 'is_system.asc,sort_order.asc,name.asc');
 
   const templatesUrl = new URL(`${baseUrl}/rest/v1/${TEMPLATES_TABLE}`);
-  templatesUrl.searchParams.set('select', 'id,template_number,title,category_id,image_url,shape,visible,featured,created_at,template_categories(name,is_system)');
-  templatesUrl.searchParams.set('order', 'created_at.desc');
+  templatesUrl.searchParams.set('select', 'id,template_number,title,category_id,image_url,shape,visible,featured,display_order,created_at,template_categories(name,is_system)');
+  templatesUrl.searchParams.set('order', 'category_id.asc.nullslast,display_order.asc,created_at.asc');
 
   const [categories, templates] = await Promise.all([
     fetchJson(categoriesUrl, { headers }, 'Unable to load template categories.'),
@@ -294,21 +295,39 @@ async function uploadTemplateImage(supabaseUrl, serviceRoleKey, body) {
 async function createTemplate(supabaseUrl, serviceRoleKey, body) {
   const imageUrl = await uploadTemplateImage(supabaseUrl, serviceRoleKey, body);
   const baseUrl = supabaseUrl.replace(/\/$/, '');
-  const endpoint = `${baseUrl}/rest/v1/${TEMPLATES_TABLE}?select=id,template_number,title,category_id,image_url,shape,visible,featured,created_at,template_categories(name,is_system)`;
+  const headers = getAuthHeaders(serviceRoleKey);
+  const categoryId = body.categoryId || null;
+  const maxOrderUrl = new URL(`${baseUrl}/rest/v1/${TEMPLATES_TABLE}`);
+  maxOrderUrl.searchParams.set('select', 'display_order');
+  maxOrderUrl.searchParams.set('order', 'display_order.desc');
+  maxOrderUrl.searchParams.set('limit', '1');
+
+  if (categoryId) {
+    maxOrderUrl.searchParams.set('category_id', `eq.${categoryId}`);
+  } else {
+    maxOrderUrl.searchParams.set('category_id', 'is.null');
+  }
+
+  const maxRows = await fetchJson(maxOrderUrl, {
+    headers,
+  }, 'Unable to inspect template order.');
+  const nextDisplayOrder = (maxRows[0]?.display_order ?? -1) + 1;
+  const endpoint = `${baseUrl}/rest/v1/${TEMPLATES_TABLE}?select=id,template_number,title,category_id,image_url,shape,visible,featured,display_order,created_at,template_categories(name,is_system)`;
   const rows = await fetchJson(endpoint, {
     method: 'POST',
     headers: {
-      ...getAuthHeaders(serviceRoleKey),
+      ...headers,
       'Content-Type': 'application/json',
       Prefer: 'return=representation',
     },
     body: JSON.stringify({
       title: getRequiredString(body.title, 'Template title'),
-      category_id: body.categoryId || null,
+      category_id: categoryId,
       image_url: imageUrl,
       shape: normalizeTemplateShape(body.shape),
       visible: normalizeBoolean(body.visible, true),
       featured: normalizeBoolean(body.featured, false),
+      display_order: nextDisplayOrder,
     }),
   }, 'Unable to save magnet template.');
 
@@ -338,7 +357,7 @@ async function updateTemplate(supabaseUrl, serviceRoleKey, body) {
   const baseUrl = supabaseUrl.replace(/\/$/, '');
   const endpoint = new URL(`${baseUrl}/rest/v1/${TEMPLATES_TABLE}`);
   endpoint.searchParams.set('id', `eq.${id}`);
-  endpoint.searchParams.set('select', 'id,template_number,title,category_id,image_url,shape,visible,featured,created_at,template_categories(name,is_system)');
+  endpoint.searchParams.set('select', 'id,template_number,title,category_id,image_url,shape,visible,featured,display_order,created_at,template_categories(name,is_system)');
 
   const rows = await fetchJson(endpoint, {
     method: 'PATCH',
@@ -351,6 +370,64 @@ async function updateTemplate(supabaseUrl, serviceRoleKey, body) {
   }, 'Unable to update magnet template.');
 
   return normalizeTemplate(rows[0]);
+}
+
+async function reorderTemplates(supabaseUrl, serviceRoleKey, body) {
+  const templateIds = Array.isArray(body.templateIds) ? body.templateIds.map(String) : [];
+  const uniqueTemplateIds = [...new Set(templateIds)];
+
+  if (uniqueTemplateIds.length === 0 || uniqueTemplateIds.length !== templateIds.length) {
+    throw new Error('A valid template order is required.');
+  }
+
+  const categoryMode = body.categoryMode === 'uncategorized' ? 'uncategorized' : 'category';
+  const categoryId = categoryMode === 'category' ? getRequiredString(body.categoryId, 'Category id') : null;
+  const baseUrl = supabaseUrl.replace(/\/$/, '');
+  const headers = getAuthHeaders(serviceRoleKey);
+  const lookupEndpoint = new URL(`${baseUrl}/rest/v1/${TEMPLATES_TABLE}`);
+  lookupEndpoint.searchParams.set('select', 'id,category_id,template_categories(is_system)');
+  lookupEndpoint.searchParams.set('id', `in.(${uniqueTemplateIds.join(',')})`);
+
+  const rows = await fetchJson(lookupEndpoint, {
+    headers,
+  }, 'Unable to load templates for reordering.');
+
+  if (rows.length !== uniqueTemplateIds.length) {
+    throw new Error('Template order contains an unknown template.');
+  }
+
+  const rowsById = new Map(rows.map(row => [row.id, row]));
+
+  uniqueTemplateIds.forEach(templateId => {
+    const row = rowsById.get(templateId);
+    const isUncategorized = !row.category_id || Boolean(row.template_categories?.is_system);
+
+    if (categoryMode === 'uncategorized' && !isUncategorized) {
+      throw new Error('Template order can only include templates from the selected category.');
+    }
+
+    if (categoryMode === 'category' && row.category_id !== categoryId) {
+      throw new Error('Template order can only include templates from the selected category.');
+    }
+  });
+
+  await Promise.all(uniqueTemplateIds.map((templateId, index) => {
+    const endpoint = new URL(`${baseUrl}/rest/v1/${TEMPLATES_TABLE}`);
+    endpoint.searchParams.set('id', `eq.${templateId}`);
+
+    return fetchJson(endpoint, {
+      method: 'PATCH',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        display_order: index,
+      }),
+    }, 'Unable to save template order.');
+  }));
+
+  return loadTemplateLibrary(supabaseUrl, serviceRoleKey);
 }
 
 async function loadTemplatesByCategory(supabaseUrl, serviceRoleKey, categoryId) {
@@ -498,6 +575,10 @@ export default async function handler(req, res) {
 
     if (body?.action === 'reorderCategories') {
       return sendJson(res, 200, { categories: await reorderCategories(supabaseUrl, serviceRoleKey, body) });
+    }
+
+    if (body?.action === 'reorderTemplates') {
+      return sendJson(res, 200, await reorderTemplates(supabaseUrl, serviceRoleKey, body));
     }
 
     if (body?.action === 'updateTemplate') {

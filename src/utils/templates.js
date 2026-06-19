@@ -32,6 +32,7 @@ function normalizeTemplate(row) {
     shape: row.shape === 'round' ? 'round' : 'rectangle',
     visible: row.visible,
     featured: row.featured,
+    displayOrder: row.display_order,
     createdAt: row.created_at,
   };
 }
@@ -65,9 +66,9 @@ export async function fetchCustomerTemplateLibrary() {
   categoriesUrl.searchParams.set('order', 'sort_order.asc,name.asc');
 
   const templatesUrl = new URL(`${baseUrl}/rest/v1/magnet_templates`);
-  templatesUrl.searchParams.set('select', 'id,template_number,title,category_id,image_url,shape,visible,featured,created_at,template_categories(name,is_system)');
+  templatesUrl.searchParams.set('select', 'id,template_number,title,category_id,image_url,shape,visible,featured,display_order,created_at,template_categories(name,is_system)');
   templatesUrl.searchParams.set('visible', 'eq.true');
-  templatesUrl.searchParams.set('order', 'featured.desc,created_at.desc');
+  templatesUrl.searchParams.set('order', 'category_id.asc.nullslast,display_order.asc,created_at.asc');
 
   const [categories, templates] = await Promise.all([
     fetchSupabaseRows(categoriesUrl, anonKey, 'Unable to load template categories.'),

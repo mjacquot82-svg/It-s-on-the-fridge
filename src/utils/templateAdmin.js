@@ -52,6 +52,16 @@ export function reorderTemplateCategories(pin, categoryIds) {
   });
 }
 
+export function reorderMagnetTemplates(pin, categoryMode, categoryId, templateIds) {
+  return postTemplateAdmin({
+    action: 'reorderTemplates',
+    pin,
+    categoryMode,
+    categoryId,
+    templateIds,
+  });
+}
+
 export function deleteTemplateCategory(pin, categoryId, templateAction) {
   return postTemplateAdmin({
     action: 'deleteCategory',

@@ -367,6 +367,14 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.template-reorder-help {
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 12px 0 0;
+}
+
 .empty-template-library {
   background: var(--color-soft);
   border-radius: 8px;
@@ -380,6 +388,39 @@
   border: 1px solid var(--color-border);
   border-radius: 8px;
   overflow: hidden;
+  position: relative;
+}
+
+.template-card.is-dragging {
+  border-color: var(--color-primary);
+  box-shadow: 0 10px 24px rgba(11, 48, 72, 0.16);
+}
+
+.template-drag-handle {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.94);
+  border: 2px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-primary);
+  cursor: grab;
+  display: inline-flex;
+  font-size: 21px;
+  font-weight: 900;
+  height: 40px;
+  justify-content: center;
+  left: 10px;
+  letter-spacing: 0;
+  line-height: 1;
+  padding: 0;
+  position: absolute;
+  top: 10px;
+  touch-action: none;
+  width: 40px;
+  z-index: 2;
+}
+
+.template-drag-handle:active {
+  cursor: grabbing;
 }
 
 .template-card > img {

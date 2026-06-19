@@ -8,6 +8,7 @@ import {
   deleteTemplateCategory,
   emptyTemplateLibrary,
   loadTemplateLibrary,
+  reorderMagnetTemplates,
   reorderTemplateCategories,
   updateMagnetTemplate,
 } from '../utils/templateAdmin';
@@ -35,6 +36,20 @@ const templateLibraryViewOptions = [
   { id: 'compact', label: 'Compact View' },
 ];
 
+function getTemplateDisplayOrder(template) {
+  return Number.isFinite(template.displayOrder) ? template.displayOrder : 0;
+}
+
+function compareTemplatesByDisplayOrder(a, b) {
+  const orderDifference = getTemplateDisplayOrder(a) - getTemplateDisplayOrder(b);
+
+  if (orderDifference !== 0) {
+    return orderDifference;
+  }
+
+  return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+}
+
 export default function SettingsPage({ onExit }) {
   const { pricingSettings, pricingSettingsStatus, updatePricingSettings } = useOrder();
   const [pin, setPin] = useState('');
@@ -58,11 +73,18 @@ export default function SettingsPage({ onExit }) {
   const [categoryDeleteAction, setCategoryDeleteAction] = useState('move');
   const [templateDeleteTarget, setTemplateDeleteTarget] = useState(null);
   const [templateLibraryView, setTemplateLibraryView] = useState('default');
+  const [draggedTemplateId, setDraggedTemplateId] = useState('');
   const categoryDragRef = useRef({
     categoryId: '',
     orderedIds: [],
     originalIds: [],
     initialCategories: [],
+  });
+  const templateDragRef = useRef({
+    templateId: '',
+    orderedIds: [],
+    originalIds: [],
+    initialTemplates: [],
   });
 
   const userCategories = useMemo(() => (
@@ -70,15 +92,19 @@ export default function SettingsPage({ onExit }) {
   ), [templateLibrary.categories]);
 
   const filteredTemplates = useMemo(() => {
+    let nextTemplates;
+
     if (categoryFilter === 'all') {
-      return templateLibrary.templates;
+      nextTemplates = templateLibrary.templates;
+    } else if (categoryFilter === 'uncategorized') {
+      nextTemplates = templateLibrary.templates.filter(template => !template.categoryId || template.categoryIsSystem);
+    } else {
+      nextTemplates = templateLibrary.templates.filter(template => template.categoryId === categoryFilter);
     }
 
-    if (categoryFilter === 'uncategorized') {
-      return templateLibrary.templates.filter(template => !template.categoryId || template.categoryIsSystem);
-    }
-
-    return templateLibrary.templates.filter(template => template.categoryId === categoryFilter);
+    return categoryFilter === 'all'
+      ? nextTemplates
+      : [...nextTemplates].sort(compareTemplatesByDisplayOrder);
   }, [categoryFilter, templateLibrary.templates]);
 
   const categoryTemplateCounts = useMemo(() => (
@@ -93,6 +119,9 @@ export default function SettingsPage({ onExit }) {
   const templateLibraryGridClassName = templateLibraryView === 'default'
     ? 'template-library-grid'
     : `template-library-grid template-library-grid-${templateLibraryView}`;
+  const canReorderTemplates = categoryFilter !== 'all';
+  const reorderCategoryMode = categoryFilter === 'uncategorized' ? 'uncategorized' : 'category';
+  const reorderCategoryId = reorderCategoryMode === 'category' ? categoryFilter : null;
 
   const applyCategoryOrder = (orderedIds) => {
     setTemplateLibrary(prev => {
@@ -389,6 +418,96 @@ export default function SettingsPage({ onExit }) {
       }));
       setTemplateStatus('error');
       setTemplateMessage(error.message || 'Unable to reorder categories.');
+    }
+  };
+
+  const applyTemplateOrder = (orderedIds) => {
+    setTemplateLibrary(prev => ({
+      ...prev,
+      templates: prev.templates.map(template => {
+        const nextIndex = orderedIds.indexOf(template.id);
+
+        return nextIndex === -1
+          ? template
+          : { ...template, displayOrder: nextIndex };
+      }),
+    }));
+  };
+
+  const handleTemplateDragStart = (event, templateId) => {
+    if (!canReorderTemplates || templateStatus === 'saving') {
+      return;
+    }
+
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    const orderedIds = filteredTemplates.map(template => template.id);
+    templateDragRef.current = {
+      templateId,
+      orderedIds,
+      originalIds: orderedIds,
+      initialTemplates: templateLibrary.templates,
+    };
+    setDraggedTemplateId(templateId);
+    setTemplateMessage('');
+  };
+
+  const handleTemplateDragMove = (event) => {
+    const { templateId, orderedIds } = templateDragRef.current;
+
+    if (!templateId) {
+      return;
+    }
+
+    const targetCard = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest('[data-template-id]');
+    const targetId = targetCard?.dataset.templateId;
+
+    if (!targetId || targetId === templateId || !orderedIds.includes(targetId)) {
+      return;
+    }
+
+    const nextIds = orderedIds.filter(id => id !== templateId);
+    nextIds.splice(nextIds.indexOf(targetId), 0, templateId);
+    templateDragRef.current.orderedIds = nextIds;
+    applyTemplateOrder(nextIds);
+  };
+
+  const handleTemplateDragEnd = async (event) => {
+    const { templateId, orderedIds, originalIds, initialTemplates } = templateDragRef.current;
+
+    if (!templateId) {
+      return;
+    }
+
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    templateDragRef.current = {
+      templateId: '',
+      orderedIds: [],
+      originalIds: [],
+      initialTemplates: [],
+    };
+    setDraggedTemplateId('');
+
+    if (orderedIds.join('|') === originalIds.join('|')) {
+      return;
+    }
+
+    setTemplateStatus('saving');
+    setTemplateMessage('');
+
+    try {
+      const library = await reorderMagnetTemplates(pin, reorderCategoryMode, reorderCategoryId, orderedIds);
+      setTemplateLibrary(library);
+      setTemplateStatus('ready');
+      setTemplateMessage('Template order saved.');
+    } catch (error) {
+      setTemplateLibrary(prev => ({
+        ...prev,
+        templates: initialTemplates,
+      }));
+      setTemplateStatus('error');
+      setTemplateMessage(error.message || 'Unable to reorder templates.');
     }
   };
 
@@ -894,6 +1013,10 @@ export default function SettingsPage({ onExit }) {
                 </div>
               </div>
 
+              {canReorderTemplates && filteredTemplates.length > 1 && (
+                <p className="template-reorder-help">Drag template handles to save a custom order for this category.</p>
+              )}
+
               <div className={templateLibraryGridClassName}>
                 {filteredTemplates.length === 0 ? (
                   <div className="empty-template-library">
@@ -901,7 +1024,25 @@ export default function SettingsPage({ onExit }) {
                   </div>
                 ) : (
                   filteredTemplates.map(template => (
-                    <article className="template-card" key={template.id}>
+                    <article
+                      className={draggedTemplateId === template.id ? 'template-card is-dragging' : 'template-card'}
+                      data-template-id={template.id}
+                      key={template.id}
+                    >
+                      {canReorderTemplates && (
+                        <button
+                          type="button"
+                          className="template-drag-handle"
+                          aria-label={`Drag ${template.title}`}
+                          disabled={templateStatus === 'saving'}
+                          onPointerDown={(event) => handleTemplateDragStart(event, template.id)}
+                          onPointerMove={handleTemplateDragMove}
+                          onPointerUp={handleTemplateDragEnd}
+                          onPointerCancel={handleTemplateDragEnd}
+                        >
+                          ⋮⋮
+                        </button>
+                      )}
                       <MagnetPreview
                         imageUrl={template.imageUrl}
                         title={template.title}

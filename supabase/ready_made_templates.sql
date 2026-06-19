@@ -27,6 +27,9 @@ alter table public.magnet_templates
 add column if not exists shape text not null default 'rectangle';
 
 alter table public.magnet_templates
+add column if not exists display_order integer;
+
+alter table public.magnet_templates
 alter column shape set default 'rectangle';
 
 update public.magnet_templates
@@ -42,6 +45,27 @@ drop constraint if exists magnet_templates_shape_check;
 alter table public.magnet_templates
 add constraint magnet_templates_shape_check
 check (shape in ('rectangle', 'round'));
+
+with ordered_templates as (
+  select
+    id,
+    row_number() over (
+      partition by category_id
+      order by created_at asc, id asc
+    ) - 1 as next_display_order
+  from public.magnet_templates
+)
+update public.magnet_templates
+set display_order = ordered_templates.next_display_order
+from ordered_templates
+where public.magnet_templates.id = ordered_templates.id
+  and public.magnet_templates.display_order is null;
+
+alter table public.magnet_templates
+alter column display_order set default 0;
+
+alter table public.magnet_templates
+alter column display_order set not null;
 
 create sequence if not exists public.magnet_template_number_seq;
 
@@ -102,6 +126,9 @@ where is_system = true and name = 'Uncategorized';
 
 create index if not exists magnet_templates_category_id_idx
 on public.magnet_templates (category_id);
+
+create index if not exists magnet_templates_category_display_order_idx
+on public.magnet_templates (category_id, display_order, created_at);
 
 create index if not exists magnet_templates_visible_featured_idx
 on public.magnet_templates (visible, featured);
