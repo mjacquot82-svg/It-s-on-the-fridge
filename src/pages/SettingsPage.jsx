@@ -29,6 +29,12 @@ const emptyTemplateForm = {
   featured: false,
 };
 
+const templateLibraryViewOptions = [
+  { id: 'large', label: 'Large View' },
+  { id: 'medium', label: 'Medium View' },
+  { id: 'compact', label: 'Compact View' },
+];
+
 export default function SettingsPage({ onExit }) {
   const { pricingSettings, pricingSettingsStatus, updatePricingSettings } = useOrder();
   const [pin, setPin] = useState('');
@@ -51,6 +57,7 @@ export default function SettingsPage({ onExit }) {
   const [categoryDeleteTarget, setCategoryDeleteTarget] = useState(null);
   const [categoryDeleteAction, setCategoryDeleteAction] = useState('move');
   const [templateDeleteTarget, setTemplateDeleteTarget] = useState(null);
+  const [templateLibraryView, setTemplateLibraryView] = useState('default');
   const categoryDragRef = useRef({
     categoryId: '',
     orderedIds: [],
@@ -83,6 +90,9 @@ export default function SettingsPage({ onExit }) {
       return counts;
     }, {})
   ), [templateLibrary.templates]);
+  const templateLibraryGridClassName = templateLibraryView === 'default'
+    ? 'template-library-grid'
+    : `template-library-grid template-library-grid-${templateLibraryView}`;
 
   const applyCategoryOrder = (orderedIds) => {
     setTemplateLibrary(prev => {
@@ -865,9 +875,26 @@ export default function SettingsPage({ onExit }) {
                     ))}
                   </select>
                 </div>
+                <div className="template-library-view-control" aria-label="Template library grid view">
+                  {templateLibraryViewOptions.map(option => (
+                    <button
+                      type="button"
+                      className={
+                        templateLibraryView === option.id
+                          ? 'gallery-view-button is-active'
+                          : 'gallery-view-button'
+                      }
+                      aria-pressed={templateLibraryView === option.id}
+                      key={option.id}
+                      onClick={() => setTemplateLibraryView(option.id)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <div className="template-library-grid">
+              <div className={templateLibraryGridClassName}>
                 {filteredTemplates.length === 0 ? (
                   <div className="empty-template-library">
                     No templates to show.

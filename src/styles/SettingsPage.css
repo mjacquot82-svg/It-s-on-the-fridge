@@ -330,6 +330,7 @@
 
 .template-library-toolbar {
   display: flex;
+  gap: 14px;
   justify-content: flex-end;
   margin-top: 22px;
 }
@@ -339,11 +340,31 @@
   width: 100%;
 }
 
+.template-library-view-control {
+  align-self: end;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  width: min(100%, 390px);
+}
+
 .template-library-grid {
   display: grid;
   gap: 18px;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   margin-top: 6px;
+}
+
+.template-library-grid-large {
+  grid-template-columns: 1fr;
+}
+
+.template-library-grid-medium {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.template-library-grid-compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .empty-template-library {
@@ -572,6 +593,27 @@
 
   .template-admin-grid {
     grid-template-columns: 1fr;
+  }
+
+  .template-library-view-control {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .template-library-grid {
+    gap: 12px;
+  }
+
+  .template-library-grid-large {
+    grid-template-columns: 1fr;
+  }
+
+  .template-library-grid-medium {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .template-library-grid-compact {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .manage-categories-button {
