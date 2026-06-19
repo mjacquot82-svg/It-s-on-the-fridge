@@ -36,6 +36,14 @@ export function createTemplateCategory(pin, category) {
   });
 }
 
+export function updateTemplateCategory(pin, category) {
+  return postTemplateAdmin({
+    action: 'updateCategory',
+    pin,
+    ...category,
+  });
+}
+
 export function createMagnetTemplate(pin, template) {
   return postTemplateAdmin({
     action: 'createTemplate',

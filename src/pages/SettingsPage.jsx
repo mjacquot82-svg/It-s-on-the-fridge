@@ -10,6 +10,7 @@ import {
   loadTemplateLibrary,
   reorderMagnetTemplates,
   reorderTemplateCategories,
+  updateTemplateCategory,
   updateMagnetTemplate,
 } from '../utils/templateAdmin';
 import { optimizeImageFile } from '../utils/cropUtils';
@@ -69,6 +70,8 @@ export default function SettingsPage({ onExit }) {
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isCategoryManagementOpen, setIsCategoryManagementOpen] = useState(false);
   const [draggedCategoryId, setDraggedCategoryId] = useState('');
+  const [categoryEditTarget, setCategoryEditTarget] = useState(null);
+  const [categoryEditName, setCategoryEditName] = useState('');
   const [categoryDeleteTarget, setCategoryDeleteTarget] = useState(null);
   const [categoryDeleteAction, setCategoryDeleteAction] = useState('move');
   const [templateDeleteTarget, setTemplateDeleteTarget] = useState(null);
@@ -418,6 +421,52 @@ export default function SettingsPage({ onExit }) {
       }));
       setTemplateStatus('error');
       setTemplateMessage(error.message || 'Unable to reorder categories.');
+    }
+  };
+
+  const handleOpenCategoryEdit = (category) => {
+    setCategoryEditTarget(category);
+    setCategoryEditName(category.name);
+    setTemplateMessage('');
+  };
+
+  const handleCloseCategoryEdit = () => {
+    setCategoryEditTarget(null);
+    setCategoryEditName('');
+  };
+
+  const handleUpdateCategory = async (event) => {
+    event.preventDefault();
+
+    if (!categoryEditTarget) {
+      return;
+    }
+
+    setTemplateStatus('saving');
+    setTemplateMessage('');
+
+    try {
+      const { category } = await updateTemplateCategory(pin, {
+        categoryId: categoryEditTarget.id,
+        name: categoryEditName,
+      });
+      setTemplateLibrary(prev => ({
+        ...prev,
+        categories: prev.categories.map(item => (
+          item.id === category.id ? category : item
+        )),
+        templates: prev.templates.map(template => (
+          template.categoryId === category.id
+            ? { ...template, categoryName: category.name }
+            : template
+        )),
+      }));
+      setTemplateStatus('ready');
+      setTemplateMessage('Category updated.');
+      handleCloseCategoryEdit();
+    } catch (error) {
+      setTemplateStatus('error');
+      setTemplateMessage(error.message || 'Unable to update category.');
     }
   };
 
@@ -846,6 +895,15 @@ export default function SettingsPage({ onExit }) {
                               </div>
                               <button
                                 type="button"
+                                className="category-edit-button"
+                                aria-label={`Edit ${category.name}`}
+                                disabled={templateStatus === 'saving'}
+                                onClick={() => handleOpenCategoryEdit(category)}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
                                 className="danger-icon-button"
                                 aria-label={`Delete ${category.name}`}
                                 disabled={templateStatus === 'saving'}
@@ -897,6 +955,39 @@ export default function SettingsPage({ onExit }) {
                       </button>
                       <button type="submit" className="next-button" disabled={templateStatus === 'saving'}>
                         {templateStatus === 'saving' ? 'Creating...' : 'Create Category'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {categoryEditTarget && (
+                <div className="settings-modal-backdrop" role="presentation">
+                  <form className="settings-form settings-modal" onSubmit={handleUpdateCategory}>
+                    <div className="settings-modal-header">
+                      <h3>Edit Category</h3>
+                      <button type="button" className="modal-close-button" onClick={handleCloseCategoryEdit}>
+                        X
+                      </button>
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="editCategoryName">Category Name</label>
+                      <input
+                        id="editCategoryName"
+                        value={categoryEditName}
+                        onChange={(event) => {
+                          setTemplateMessage('');
+                          setCategoryEditName(event.target.value);
+                        }}
+                        required
+                      />
+                    </div>
+                    <div className="settings-modal-actions">
+                      <button type="button" className="back-button" onClick={handleCloseCategoryEdit}>
+                        Cancel
+                      </button>
+                      <button type="submit" className="next-button" disabled={templateStatus === 'saving'}>
+                        {templateStatus === 'saving' ? 'Saving...' : 'Save Category'}
                       </button>
                     </div>
                   </form>

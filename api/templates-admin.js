@@ -134,8 +134,30 @@ async function loadTemplateLibrary(supabaseUrl, serviceRoleKey) {
   };
 }
 
+async function ensureCategoryNameAvailable(supabaseUrl, serviceRoleKey, name, excludedCategoryId = '') {
+  const baseUrl = supabaseUrl.replace(/\/$/, '');
+  const endpoint = new URL(`${baseUrl}/rest/v1/${CATEGORIES_TABLE}`);
+  endpoint.searchParams.set('select', 'id,name');
+
+  const rows = await fetchJson(endpoint, {
+    headers: getAuthHeaders(serviceRoleKey),
+  }, 'Unable to inspect template categories.');
+  const normalizedName = name.trim().toLowerCase();
+  const duplicate = rows.find(row => (
+    row.id !== excludedCategoryId && String(row.name || '').trim().toLowerCase() === normalizedName
+  ));
+
+  if (duplicate) {
+    throw new Error('A category with that name already exists.');
+  }
+}
+
 async function createCategory(supabaseUrl, serviceRoleKey, body) {
   const baseUrl = supabaseUrl.replace(/\/$/, '');
+  const name = getRequiredString(body.name, 'Category name');
+
+  await ensureCategoryNameAvailable(supabaseUrl, serviceRoleKey, name);
+
   const maxSortUrl = new URL(`${baseUrl}/rest/v1/${CATEGORIES_TABLE}`);
   maxSortUrl.searchParams.set('select', 'sort_order');
   maxSortUrl.searchParams.set('is_system', 'eq.false');
@@ -156,12 +178,52 @@ async function createCategory(supabaseUrl, serviceRoleKey, body) {
       Prefer: 'return=representation',
     },
     body: JSON.stringify({
-      name: getRequiredString(body.name, 'Category name'),
+      name,
       sort_order: nextSortOrder,
       visible: normalizeBoolean(body.visible, true),
       is_system: false,
     }),
   }, 'Unable to create template category.');
+
+  return normalizeCategory(rows[0]);
+}
+
+async function updateCategory(supabaseUrl, serviceRoleKey, body) {
+  const categoryId = getRequiredString(body.categoryId, 'Category id');
+  const name = getRequiredString(body.name, 'Category name');
+  const category = await fetchCategory(supabaseUrl, serviceRoleKey, categoryId);
+
+  if (!category) {
+    throw new Error('Category was not found.');
+  }
+
+  if (category.isSystem) {
+    throw new Error('Uncategorized cannot be edited.');
+  }
+
+  await ensureCategoryNameAvailable(supabaseUrl, serviceRoleKey, name, categoryId);
+
+  if (category.name.trim() === name) {
+    return category;
+  }
+
+  const baseUrl = supabaseUrl.replace(/\/$/, '');
+  const endpoint = new URL(`${baseUrl}/rest/v1/${CATEGORIES_TABLE}`);
+  endpoint.searchParams.set('id', `eq.${categoryId}`);
+  endpoint.searchParams.set('is_system', 'eq.false');
+  endpoint.searchParams.set('select', 'id,name,sort_order,visible,is_system');
+
+  const rows = await fetchJson(endpoint, {
+    method: 'PATCH',
+    headers: {
+      ...getAuthHeaders(serviceRoleKey),
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify({
+      name,
+    }),
+  }, 'Unable to update template category.');
 
   return normalizeCategory(rows[0]);
 }
@@ -567,6 +629,10 @@ export default async function handler(req, res) {
 
     if (body?.action === 'createCategory') {
       return sendJson(res, 200, { category: await createCategory(supabaseUrl, serviceRoleKey, body) });
+    }
+
+    if (body?.action === 'updateCategory') {
+      return sendJson(res, 200, { category: await updateCategory(supabaseUrl, serviceRoleKey, body) });
     }
 
     if (body?.action === 'createTemplate') {

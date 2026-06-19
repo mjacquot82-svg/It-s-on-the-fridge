@@ -278,6 +278,7 @@
 }
 
 .category-drag-handle,
+.category-edit-button,
 .danger-icon-button {
   align-items: center;
   border: 2px solid transparent;
@@ -288,6 +289,15 @@
   justify-content: center;
   padding: 0;
   width: 40px;
+}
+
+.category-edit-button {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 0 12px;
+  width: auto;
 }
 
 .category-drag-handle {
@@ -672,7 +682,7 @@
 
   .category-row {
     display: grid;
-    grid-template-columns: 40px minmax(0, 1fr) 40px;
+    grid-template-columns: 40px minmax(0, 1fr) auto 40px;
   }
 
   .settings-modal {
