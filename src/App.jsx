@@ -10,11 +10,13 @@ import ReviewOrder from './pages/ReviewOrder';
 import OrderSubmitted from './pages/OrderSubmitted';
 import SettingsPage from './pages/SettingsPage';
 import ReadyMadeDesigns from './pages/ReadyMadeDesigns';
+import InstallPage from './pages/InstallPage';
 import BuildVersion from './components/BuildVersion';
 import './App.css';
 
 function AppContent() {
   const { resetOrder } = useOrder();
+  const [pathname, setPathname] = useState(() => window.location.pathname);
   const [isSettingsOpen, setIsSettingsOpen] = useState(() => window.location.hash === '#settings');
   const [isReadyMadeOpen, setIsReadyMadeOpen] = useState(false);
   const pages = useMemo(() => [
@@ -30,6 +32,15 @@ function AppContent() {
   const [currentPage, setCurrentPage] = useState(0);
 
   const CurrentPage = pages[currentPage].component;
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setPathname(window.location.pathname);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -57,11 +68,28 @@ function AppContent() {
     setCurrentPage(0);
   };
 
+  const handleStartDesigning = () => {
+    window.history.pushState({}, '', '/');
+    setPathname('/');
+    setIsSettingsOpen(false);
+    setIsReadyMadeOpen(false);
+    resetOrder();
+    setCurrentPage(0);
+  };
+
   const pageProps = {
     onNext: handleNext,
     onBack: handleBack,
     onBrowseReadyMade: () => setIsReadyMadeOpen(true),
   };
+
+  if (pathname === '/install') {
+    return (
+      <div className="app">
+        <InstallPage onStartDesigning={handleStartDesigning} />
+      </div>
+    );
+  }
 
   if (isSettingsOpen) {
     return (

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "generate:install-assets": "node scripts/generate-install-assets.mjs",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"

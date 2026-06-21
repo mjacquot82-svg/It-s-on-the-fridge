@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const HTML_CACHE = `fridge-magnets-html-${CACHE_VERSION}`;
 const ASSET_CACHE = `fridge-magnets-assets-${CACHE_VERSION}`;
 const OFFLINE_HTML_URL = '/index.html';
@@ -45,7 +45,7 @@ function isHtmlShellRequest(request, requestUrl) {
 }
 
 function isBuildAsset(requestUrl) {
-  return requestUrl.pathname.startsWith('/assets/');
+  return requestUrl.pathname.startsWith('/assets/') || requestUrl.pathname.startsWith('/install-assets/');
 }
 
 function isApiRequest(requestUrl) {
