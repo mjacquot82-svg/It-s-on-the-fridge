@@ -331,33 +331,42 @@ function badge(text, x, y, width) {
   </g>`;
 }
 
+function badgeGroup(width, y) {
+  const rowGap = 24;
+  const firstRowWidth = 212 + rowGap + 236;
+  const firstRowX = (width - firstRowWidth) / 2;
+  const secondRowWidth = 388;
+  const secondRowX = (width - secondRowWidth) / 2;
+
+  return `${badge('✓ iPhone', firstRowX, y, 212)}
+  ${badge('✓ Android', firstRowX + 212 + rowGap, y, 236)}
+  ${badge('✓ No App Store Required', secondRowX, y + 68, secondRowWidth)}`;
+}
+
 function featureDots(width, height) {
   return `<circle cx="${width - 120}" cy="112" r="48" fill="${YELLOW}"/>
   <circle cx="102" cy="${height - 116}" r="44" fill="${PINK}" opacity="0.95"/>
   <rect x="${width - 216}" y="${height - 202}" width="92" height="92" rx="18" fill="${TEAL}" transform="rotate(-8 ${width - 170} ${height - 156})"/>`;
 }
 
-function socialSvg({ width, height, qrSize, qrY, titleSize }) {
+function socialSvg({ width, height, qrSize, qrY, titleSize, titleY, ctaY, badgeY }) {
   const qrX = (width - qrSize) / 2;
   const moduleSize = qrSize / (SIZE + 8);
   const modulesOffset = qrX + moduleSize * 4;
   const qrOffsetY = qrY + moduleSize * 4;
-  const badgeY = qrY + qrSize + 54;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="It's On The Fridge install QR code">
   <title>${INSTALL_URL}</title>
   <rect width="${width}" height="${height}" fill="${CREAM}"/>
   ${featureDots(width, height)}
   <image href="${LOGO_DATA_URI}" x="${(width - 244) / 2}" y="62" width="244" height="244" preserveAspectRatio="xMidYMid meet"/>
-  <text x="${width / 2}" y="${height === 1350 ? 390 : 348}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${titleSize}" font-weight="800" fill="${DARK}">
+  <text x="${width / 2}" y="${titleY}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${titleSize}" font-weight="800" fill="${DARK}">
     <tspan x="${width / 2}">Turn Your Favorite Photos</tspan>
     <tspan x="${width / 2}" dy="${titleSize + 12}">Into Custom Fridge Magnets</tspan>
   </text>
   <rect x="${qrX - 24}" y="${qrY - 24}" width="${qrSize + 48}" height="${qrSize + 48}" rx="36" fill="${WHITE}" stroke="${DARK}" stroke-width="8"/>
   <g fill="${DARK}">${qrRects(modules, moduleSize, modulesOffset, qrOffsetY)}</g>
-  <text x="${width / 2}" y="${qrY + qrSize + 130}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="800" fill="${DARK}">📱 Scan to Install &amp; Start Designing</text>
-  ${badge('✓ iPhone', width / 2 - 388, badgeY, 212)}
-  ${badge('✓ Android', width / 2 - 146, badgeY, 236)}
-  ${badge('✓ No App Store Required', width / 2 + 120, badgeY, 388)}
+  <text x="${width / 2}" y="${ctaY}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="800" fill="${DARK}">📱 Scan to Install &amp; Start Designing</text>
+  ${badgeGroup(width, badgeY)}
 </svg>
 `;
 }
@@ -365,8 +374,8 @@ function socialSvg({ width, height, qrSize, qrY, titleSize }) {
 const modules = makeQr(INSTALL_URL);
 
 writeFileSync(`${OUT_DIR}/install-qr.svg`, qrSvg(modules));
-writeFileSync(`${OUT_DIR}/instagram-post-1080x1080.svg`, socialSvg({ width: 1080, height: 1080, qrSize: 430, qrY: 472, titleSize: 58 }));
-writeFileSync(`${OUT_DIR}/instagram-portrait-1080x1350.svg`, socialSvg({ width: 1080, height: 1350, qrSize: 520, qrY: 545, titleSize: 60 }));
-writeFileSync(`${OUT_DIR}/facebook-post-1200x1200.svg`, socialSvg({ width: 1200, height: 1200, qrSize: 500, qrY: 508, titleSize: 64 }));
+writeFileSync(`${OUT_DIR}/instagram-post-1080x1080.svg`, socialSvg({ width: 1080, height: 1080, qrSize: 390, qrY: 450, titleSize: 54, titleY: 334, ctaY: 900, badgeY: 940 }));
+writeFileSync(`${OUT_DIR}/instagram-portrait-1080x1350.svg`, socialSvg({ width: 1080, height: 1350, qrSize: 500, qrY: 525, titleSize: 60, titleY: 390, ctaY: 1100, badgeY: 1160 }));
+writeFileSync(`${OUT_DIR}/facebook-post-1200x1200.svg`, socialSvg({ width: 1200, height: 1200, qrSize: 460, qrY: 470, titleSize: 62, titleY: 350, ctaY: 1005, badgeY: 1055 }));
 
 console.log(`Generated install QR assets for ${INSTALL_URL}`);
