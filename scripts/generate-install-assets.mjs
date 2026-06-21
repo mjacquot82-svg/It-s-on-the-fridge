@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 
 const INSTALL_URL = 'https://itsonthefridge.appthat.ca/install';
 const OUT_DIR = 'public/install-assets';
@@ -16,7 +16,6 @@ const CREAM = '#fbf9f3';
 const WHITE = '#ffffff';
 
 mkdirSync(OUT_DIR, { recursive: true });
-const LOGO_DATA_URI = `data:image/png;base64,${readFileSync('public/logo.png').toString('base64')}`;
 
 function gfTables() {
   const exp = new Array(512);
@@ -358,7 +357,6 @@ function socialSvg({ width, height, qrSize, qrY, titleSize, titleY, ctaY, badgeY
   <title>${INSTALL_URL}</title>
   <rect width="${width}" height="${height}" fill="${CREAM}"/>
   ${featureDots(width, height)}
-  <image href="${LOGO_DATA_URI}" x="${(width - 244) / 2}" y="62" width="244" height="244" preserveAspectRatio="xMidYMid meet"/>
   <text x="${width / 2}" y="${titleY}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${titleSize}" font-weight="800" fill="${DARK}">
     <tspan x="${width / 2}">Turn Your Favorite Photos</tspan>
     <tspan x="${width / 2}" dy="${titleSize + 12}">Into Custom Fridge Magnets</tspan>
@@ -374,8 +372,8 @@ function socialSvg({ width, height, qrSize, qrY, titleSize, titleY, ctaY, badgeY
 const modules = makeQr(INSTALL_URL);
 
 writeFileSync(`${OUT_DIR}/install-qr.svg`, qrSvg(modules));
-writeFileSync(`${OUT_DIR}/instagram-post-1080x1080.svg`, socialSvg({ width: 1080, height: 1080, qrSize: 390, qrY: 450, titleSize: 54, titleY: 334, ctaY: 900, badgeY: 940 }));
-writeFileSync(`${OUT_DIR}/instagram-portrait-1080x1350.svg`, socialSvg({ width: 1080, height: 1350, qrSize: 500, qrY: 525, titleSize: 60, titleY: 390, ctaY: 1100, badgeY: 1160 }));
-writeFileSync(`${OUT_DIR}/facebook-post-1200x1200.svg`, socialSvg({ width: 1200, height: 1200, qrSize: 460, qrY: 470, titleSize: 62, titleY: 350, ctaY: 1005, badgeY: 1055 }));
+writeFileSync(`${OUT_DIR}/instagram-post-1080x1080.svg`, socialSvg({ width: 1080, height: 1080, qrSize: 430, qrY: 300, titleSize: 56, titleY: 120, ctaY: 820, badgeY: 870 }));
+writeFileSync(`${OUT_DIR}/instagram-portrait-1080x1350.svg`, socialSvg({ width: 1080, height: 1350, qrSize: 560, qrY: 335, titleSize: 62, titleY: 145, ctaY: 1010, badgeY: 1070 }));
+writeFileSync(`${OUT_DIR}/facebook-post-1200x1200.svg`, socialSvg({ width: 1200, height: 1200, qrSize: 500, qrY: 325, titleSize: 64, titleY: 135, ctaY: 935, badgeY: 990 }));
 
 console.log(`Generated install QR assets for ${INSTALL_URL}`);
