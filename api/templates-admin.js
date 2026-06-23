@@ -609,7 +609,7 @@ export default async function handler(req, res) {
   }
 
   const { url: supabaseUrl, serviceRoleKey } = getSupabaseConfig();
-  const settingsPin = process.env.SETTINGS_PIN || '2468';
+  const settingsPin = process.env.SETTINGS_PIN || '08311984';
 
   if (!supabaseUrl || !serviceRoleKey) {
     return sendJson(res, 500, { error: 'Supabase template storage is not configured.' });

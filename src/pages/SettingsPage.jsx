@@ -16,7 +16,7 @@ import {
 import { optimizeImageFile } from '../utils/cropUtils';
 import '../styles/SettingsPage.css';
 
-const SETTINGS_PIN = '2468';
+const SETTINGS_PIN = '08311984';
 
 const emptyCategoryForm = {
   name: '',
