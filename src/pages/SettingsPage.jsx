@@ -90,6 +90,13 @@ export default function SettingsPage({ onExit }) {
     initialTemplates: [],
   });
 
+  useEffect(() => {
+    setPinError('');
+    setSaveMessage('');
+    setTemplateMessage('');
+    setTemplateStatus('idle');
+  }, []);
+
   const userCategories = useMemo(() => (
     templateLibrary.categories.filter(category => !category.isSystem)
   ), [templateLibrary.categories]);
@@ -147,12 +154,19 @@ export default function SettingsPage({ onExit }) {
     event.preventDefault();
     if (pin === SETTINGS_PIN) {
       setFormValues(pricingSettings);
-      setIsUnlocked(true);
       setPinError('');
+      setSaveMessage('');
+      setTemplateMessage('');
+      setIsUnlocked(true);
       return;
     }
 
     setPinError('Incorrect PIN.');
+  };
+
+  const handlePinChange = (event) => {
+    setPin(event.target.value);
+    setPinError('');
   };
 
   useEffect(() => {
@@ -643,7 +657,7 @@ export default function SettingsPage({ onExit }) {
                 type="password"
                 inputMode="numeric"
                 value={pin}
-                onChange={(event) => setPin(event.target.value)}
+                onChange={handlePinChange}
                 autoComplete="current-password"
               />
             </div>
