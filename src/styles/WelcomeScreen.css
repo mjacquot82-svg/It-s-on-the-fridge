@@ -29,12 +29,12 @@
 }
 
 .welcome-logo {
-  width: 100%;
+  width: min(100%, 500px);
   margin-bottom: clamp(20px, 4vh, 36px);
 }
 
 .brand-logo {
-  width: min(86vw, 860px);
+  width: 100%;
   max-height: 58vh;
   height: auto;
   display: block;
@@ -223,7 +223,6 @@
   }
 
   .brand-logo {
-    width: min(90vw, 520px);
     max-height: 52vh;
   }
 
