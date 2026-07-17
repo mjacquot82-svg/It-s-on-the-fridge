@@ -80,7 +80,7 @@ function AppContent() {
     );
   }
 
-  if (pathname === '/domain') {
+  if (pathname === '/admin') {
     return (
       <div className="app">
         <SettingsPage
