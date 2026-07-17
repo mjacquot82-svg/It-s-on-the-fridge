@@ -17,7 +17,6 @@ import './App.css';
 function AppContent() {
   const { resetOrder } = useOrder();
   const [pathname, setPathname] = useState(() => window.location.pathname);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(() => window.location.hash === '#settings');
   const [isReadyMadeOpen, setIsReadyMadeOpen] = useState(false);
   const pages = useMemo(() => [
     { component: WelcomeScreen, title: 'Welcome' },
@@ -42,15 +41,6 @@ function AppContent() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  useEffect(() => {
-    const handleHashChange = () => {
-      setIsSettingsOpen(window.location.hash === '#settings');
-    };
-
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
-
   const handleNext = () => {
     if (currentPage < pages.length - 1) {
       setCurrentPage(currentPage + 1);
@@ -71,7 +61,6 @@ function AppContent() {
   const handleStartDesigning = () => {
     window.history.pushState({}, '', '/');
     setPathname('/');
-    setIsSettingsOpen(false);
     setIsReadyMadeOpen(false);
     resetOrder();
     setCurrentPage(0);
@@ -91,13 +80,13 @@ function AppContent() {
     );
   }
 
-  if (isSettingsOpen) {
+  if (pathname === '/domain') {
     return (
       <div className="app">
         <SettingsPage
           onExit={() => {
-            window.location.hash = '';
-            setIsSettingsOpen(false);
+            window.history.pushState({}, '', '/');
+            setPathname('/');
           }}
         />
         <BuildVersion />

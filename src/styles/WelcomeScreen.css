@@ -201,14 +201,6 @@
   box-shadow: 0 6px 18px rgba(11, 48, 72, 0.28);
 }
 
-.settings-link {
-  display: inline-block;
-  color: var(--color-muted);
-  font-size: 12px;
-  margin-top: 14px;
-  text-decoration: underline;
-}
-
 @media (max-width: 640px) {
   .welcome-content {
     padding: 0;

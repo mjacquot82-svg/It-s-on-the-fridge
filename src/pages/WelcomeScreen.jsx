@@ -48,9 +48,6 @@ export default function WelcomeScreen({ onNext, onBrowseReadyMade }) {
           </button>
         </div>
 
-        <a className="settings-link" href="#settings">
-          Jennifer Settings
-        </a>
       </div>
     </div>
   );
