@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import logo from '../assets/logo.png';
 import '../styles/InstallPage.css';
 
-const INSTALL_URL = 'https://itsonthefridge.appthat.ca/install';
+const INSTALL_URL = 'https://itsonthefridge.jdsstudio.ca/install';
 
 function getDeviceType() {
   const ua = navigator.userAgent || navigator.vendor || '';
