@@ -16,7 +16,6 @@ export const ORDERS = Object.freeze([
       { type: 'print_ready', name: 'print-ready.jpg', size: 585706, hash: '57d064a66bd214ad45bf4ceeb232005c09ab4f2330534eefd365b0f76bf431e0' },
     ] },
   { number: 'IOF-20261103-F1D51F01', id: '2bea0aed-d4f1-4d86-9b34-28c5dc2aea62', type: 'custom_photo', submitted: '2026-11-03T21:24:08.149Z', quantity: 1,
-    hold: 'prior_gmail_outcome_uncertain',
     images: [
       { type: 'original', name: 'original.jpg', size: 772454, hash: '9c1f1c061e40d01bef30f5979f77e8faaa082223108b7c38e42b17ab3495a4bf' },
       { type: 'print_ready', name: 'print-ready.jpg', size: 437176, hash: 'ec32c7b5ec65923ac037f0acb4bf9b58f53b721c0d0d13cef872dd8022dd61e7' },
@@ -33,7 +32,6 @@ export function eligibility(row, expected) {
   if (row.id !== expected.id || row.public_order_number !== expected.number || row.order_type !== expected.type
     || new Date(row.submitted_at).toISOString() !== expected.submitted || row.total_quantity !== expected.quantity) fail('order_identity_mismatch');
   if (row.resend_message_id) return 'skip_existing_provider_id';
-  if (expected.hold) return `blocked_${expected.hold}`;
   if (row.email_status !== 'email_failed' || row.email_error !== ORIGINAL_ERROR) return 'blocked_status_requires_review';
   return 'eligible';
 }

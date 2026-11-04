@@ -13,9 +13,9 @@ original submission times, order types, quantities, and photo sizes/hashes.
 - IOF-20260718-986634AA: ready-made, one saved item.
 - IOF-20260731-36B925C9: ready-made, two saved items.
 - IOF-20261028-EB9BC5E2: custom photo, original and print-ready attachments.
-- IOF-20261103-F1D51F01: BLOCKED because a prior Gmail send has an uncertain
-  outcome. No CLI flag or environment variable can release this hold. New
-  reconciliation evidence, source review, and tests are required first.
+- IOF-20261103-F1D51F01: custom photo, original and print-ready attachments.
+  Its prior Gmail outcome remains uncertain. Marc explicitly approved this
+  historical notification despite the possible duplicate. Do not retry Gmail.
 
 All messages retain the original number and timestamp and explicitly say they
 are delayed historical notifications, not new orders. They ask Jen to check

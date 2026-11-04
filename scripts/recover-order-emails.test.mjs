@@ -14,7 +14,7 @@ function fixture({ photos = false, sendMode = 'ok', updateMode = 'ok' } = {}) {
     email_status: 'email_failed', email_error: ORIGINAL_ERROR, resend_message_id: null,
     customer_name: 'Example Customer', customer_email: 'customer@example.com', customer_phone: '5555555555',
     customer_notes: null, magnet_type: 'round' }));
-  if (!photos) rows[2].resend_message_id = 'previously-sent';
+  if (!photos) { rows[2].resend_message_id = 'previously-sent-october'; rows[3].resend_message_id = 'previously-sent-november'; }
   const calls = [], reports = [], sends = [];
   const fetchImpl = async (address, options = {}) => {
     const url = new URL(address); calls.push({ address, options });
@@ -46,7 +46,9 @@ function fixture({ photos = false, sendMode = 'ok', updateMode = 'ok' } = {}) {
       assert.equal(url.origin, BASE);
       assert.equal(options.redirect, 'error');
       const name = url.pathname.split('/').pop();
-      const bytes = readFileSync(join(process.env.FRIDGE_RECOVERY_FIXTURES, `${ORDERS[2].number}-${name}`));
+      const spec = ORDERS.find(s => url.pathname.includes(`/${s.id}/`));
+      assert.ok(spec, 'storage path must belong to an allowlisted order');
+      const bytes = readFileSync(join(process.env.FRIDGE_RECOVERY_FIXTURES, `${spec.number}-${name}`));
       return { ok: true, arrayBuffer: async () => bytes };
     }
     assert.equal(address, 'https://api.resend.com/emails');
@@ -62,10 +64,10 @@ function fixture({ photos = false, sendMode = 'ok', updateMode = 'ok' } = {}) {
   return { rows, calls, reports, sends, options: { env, now, fetchImpl, report: value => reports.push(value) } };
 }
 
-test('read-only preflight sends nothing and keeps newest order held', async () => {
+test('read-only preflight sends nothing and skips existing provider IDs', async () => {
   const f = fixture(); await runRecovery(f.options);
   assert.equal(f.sends.length, 0); assert.ok(f.calls.every(c => c.options.method === 'GET'));
-  assert.ok(f.reports.some(r => r.order === ORDERS[3].number && r.status === 'blocked_prior_gmail_outcome_uncertain'));
+  assert.ok(f.reports.some(r => r.order === ORDERS[3].number && r.status === 'skip_existing_provider_id'));
 });
 test('ready-made recovery preserves IDs/dates/items; changes only existing email state', async () => {
   const f = fixture(); await runRecovery({ ...f.options, execute: true });
@@ -121,10 +123,16 @@ test('bad image metadata stops all sends during preflight', async () => {
   } }), /saved_images_mismatch/);
   assert.equal(f.sends.length, 0); assert.ok(f.calls.every(c => c.options.method !== 'PATCH'));
 });
-test('real recovered photos match pinned hashes and become exactly two attachments', { skip: !process.env.FRIDGE_RECOVERY_FIXTURES }, async () => {
+test('both photo orders match pinned hashes and each receive exactly two attachments', { skip: !process.env.FRIDGE_RECOVERY_FIXTURES }, async () => {
   const f = fixture({ photos: true }); await runRecovery({ ...f.options, execute: true });
-  assert.equal(f.sends.length, 3); const mail = f.sends[2].message;
-  assert.equal(mail.attachments.length, 2);
-  for (let i = 0; i < 2; i++) assert.equal(Buffer.from(mail.attachments[i].content, 'base64').length, ORDERS[2].images[i].size);
-  assert.equal(f.rows[3].email_status, 'email_failed');
+  assert.equal(f.sends.length, 4);
+  for (const index of [2, 3]) {
+    const mail = f.sends[index].message;
+    assert.equal(mail.attachments.length, 2);
+    for (let i = 0; i < 2; i++) assert.equal(Buffer.from(mail.attachments[i].content, 'base64').length, ORDERS[index].images[i].size);
+    assert.equal(f.rows[index].email_status, 'email_sent');
+    assert.ok(mail.text.includes(ORDERS[index].submitted));
+  }
+  await runRecovery({ ...f.options, execute: true });
+  assert.equal(f.sends.length, 4, 'rerunning all four must not resend');
 });
