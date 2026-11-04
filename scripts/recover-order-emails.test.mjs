@@ -61,7 +61,7 @@ function fixture({ photos = false, sendMode = 'ok', updateMode = 'ok' } = {}) {
     if (sendMode === 'bad-id') return response({});
     return response({ id: `provider-${sends.length}` });
   };
-  return { rows, calls, reports, sends, options: { env, now, fetchImpl, report: value => reports.push(value) } };
+  return { rows, calls, reports, sends, options: { env, now, fetchImpl, wait: async ms => assert.equal(ms, 1100), report: value => reports.push(value) } };
 }
 
 test('read-only preflight sends nothing and skips existing provider IDs', async () => {

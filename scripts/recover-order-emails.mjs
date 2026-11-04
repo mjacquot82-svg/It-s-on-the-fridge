@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
+import { setTimeout as pause } from 'node:timers/promises';
 
 export const FROM = 'orders@jdsstudio.ca';
 export const TO = 'jenniferjacquotphotography@gmail.com';
@@ -59,7 +60,7 @@ export function buildMessage(row, items, attachments) {
     text: lines.join('\n'), ...(attachments.length ? { attachments } : {}) };
 }
 
-export async function runRecovery({ execute = false, env = process.env, now = Date.now, fetchImpl = fetch, report = () => {} } = {}) {
+export async function runRecovery({ execute = false, env = process.env, now = Date.now, fetchImpl = fetch, report = () => {}, wait = pause } = {}) {
   if (now() < START || now() >= EXPIRY) fail('execution_window_closed');
   if (env.VERCEL_ENV !== 'production' || env.VERCEL_PROJECT_ID !== 'prj_63HWF3y2oDib1BzFK9GezNmRnKAM') fail('wrong_production_project');
   if ((env.SUPABASE_URL || env.VITE_SUPABASE_URL)?.replace(/\/$/, '') !== BASE
@@ -122,6 +123,7 @@ export async function runRecovery({ execute = false, env = process.env, now = Da
   }
   if (!execute) return { status: 'read_only_preflight', eligible: prepared.length };
   for (const { row, expected, body, marker } of prepared) {
+    await wait(1100); // Pace below one provider request per second; never automatically retry.
     if (now() < START || now() >= EXPIRY) fail('execution_window_closed');
     // Atomic compare-and-set: only one runner can claim this exact unchanged failed row.
     const claim = await db('fridge_orders', { id: `eq.${expected.id}`, public_order_number: `eq.${expected.number}`,
