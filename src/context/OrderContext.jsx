@@ -481,7 +481,24 @@ export function OrderProvider({ children }) {
       quantity: primaryDesign.quantity,
     };
 
-    const pendingRequestBody = JSON.stringify({ order: newOrder, turnstileToken });
+    // Wire payload: send each image once. Duplicating customDesigns + designs +
+    // top-level photo/croppedImage tripled camera-roll photos past the 4 MiB guard.
+    const apiOrder = {
+      id: newOrder.id,
+      submittedAt: newOrder.submittedAt,
+      orderType: newOrder.orderType,
+      customerInfo: newOrder.customerInfo,
+      customDesigns: optimizedDesigns,
+      totalQuantity,
+      magnetType: primaryDesign.magnetType,
+      crop: primaryDesign.crop,
+      croppedAreaPixels: primaryDesign.croppedAreaPixels,
+      zoom: primaryDesign.zoom,
+      cropVerification: primaryDesign.cropVerification,
+      quantity: primaryDesign.quantity,
+    };
+
+    const pendingRequestBody = JSON.stringify({ order: apiOrder, turnstileToken });
     logImageSubmissionDiagnostic('actual payload before client validation', {
       stage: 'pre-client payload validation',
       designCount: optimizedDesigns.length,
@@ -491,7 +508,7 @@ export function OrderProvider({ children }) {
 
     validateSubmissionPayloadSize(optimizedDesigns, getStringBytes(pendingRequestBody));
 
-    const emailDelivery = await sendOrderEmail(newOrder, turnstileToken);
+    const emailDelivery = await sendOrderEmail(apiOrder, turnstileToken);
 
     const emailPayload = sanitizeEmailPayload(createEmailPayload(newOrder));
 

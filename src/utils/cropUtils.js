@@ -10,13 +10,13 @@ function createImage(imageSrc) {
 const OPTIMIZED_IMAGE_TYPE = 'image/jpeg';
 const OPTIMIZED_IMAGE_QUALITY = 0.88;
 const OPTIMIZED_MAX_LONG_EDGE = 2000;
-const OPTIMIZED_TARGET_BYTES = 1.85 * 1024 * 1024;
-const OPTIMIZED_MAX_BYTES = 2.8 * 1024 * 1024;
+const OPTIMIZED_TARGET_BYTES = 1.35 * 1024 * 1024;
+const OPTIMIZED_MAX_BYTES = 2.0 * 1024 * 1024;
 const MIN_PRINT_LONG_EDGE = 900;
-const SUBMISSION_TARGET_BYTES = 2.75 * 1024 * 1024;
-const SUBMISSION_MAX_ESTIMATED_JSON_BYTES = 4.8 * 1024 * 1024;
-const CROPPED_TARGET_BYTES = 0.95 * 1024 * 1024;
-const CROPPED_MAX_BYTES = 1.5 * 1024 * 1024;
+const SUBMISSION_TARGET_BYTES = 2.1 * 1024 * 1024;
+const SUBMISSION_MAX_ESTIMATED_JSON_BYTES = 3.6 * 1024 * 1024;
+const CROPPED_TARGET_BYTES = 0.7 * 1024 * 1024;
+const CROPPED_MAX_BYTES = 1.1 * 1024 * 1024;
 
 function getBase64PayloadSize(dataUrl) {
   const base64Value = dataUrl.split(',')[1] || '';
@@ -290,6 +290,57 @@ export async function optimizeCustomDesignsForSubmission(designs) {
   for (const design of designs) {
     optimized.push(await optimizeOrderImagesForSubmission(design));
   }
+
+  // Keep the whole multi-design JSON under the client 4 MiB guard (images once each).
+  const maxTotalEstimatedJsonBytes = 3.6 * 1024 * 1024;
+  let totalEstimated = optimized.reduce(
+    (sum, design) => sum + estimateJsonPayloadBytes(design.photo, design.croppedImage),
+    0,
+  );
+
+  for (let pass = 0; pass < 4 && totalEstimated > maxTotalEstimatedJsonBytes; pass += 1) {
+    for (let i = 0; i < optimized.length; i += 1) {
+      const design = optimized[i];
+      const photo = (await optimizeDataUrl(design.photo, {
+        maxLongEdge: Math.max(MIN_PRINT_LONG_EDGE, Math.round(1600 * (0.9 ** pass))),
+        minLongEdge: MIN_PRINT_LONG_EDGE,
+        quality: Math.max(0.68, 0.8 - pass * 0.04),
+        minQuality: 0.66,
+        targetBytes: Math.max(700 * 1024, getDataUrlBytes(design.photo) * 0.78),
+        maxBytes: OPTIMIZED_MAX_BYTES,
+        preferredTypes: [OPTIMIZED_IMAGE_TYPE],
+        fillStyle: '#ffffff',
+        diagnosticStage: 'multi-design total payload reduction (original)',
+      })).dataUrl;
+      const croppedImage = (await optimizeDataUrl(design.croppedImage, {
+        maxLongEdge: Math.max(MIN_PRINT_LONG_EDGE, Math.round(1100 * (0.9 ** pass))),
+        minLongEdge: MIN_PRINT_LONG_EDGE,
+        quality: Math.max(0.7, 0.86 - pass * 0.04),
+        minQuality: 0.68,
+        targetBytes: Math.max(520 * 1024, getDataUrlBytes(design.croppedImage) * 0.78),
+        maxBytes: CROPPED_MAX_BYTES,
+        preferredTypes: [OPTIMIZED_IMAGE_TYPE],
+        fillStyle: '#ffffff',
+        diagnosticStage: 'multi-design total payload reduction (cropped)',
+      })).dataUrl;
+      optimized[i] = { ...design, photo, croppedImage };
+    }
+    totalEstimated = optimized.reduce(
+      (sum, design) => sum + estimateJsonPayloadBytes(design.photo, design.croppedImage),
+      0,
+    );
+  }
+
+  if (totalEstimated > maxTotalEstimatedJsonBytes) {
+    logImageDiagnostic('rejected during multi-design total payload guard', {
+      stage: 'multi-design total payload guard',
+      designCount: optimized.length,
+      estimatedPayloadBytes: totalEstimated,
+      maxEstimatedPayloadBytes: maxTotalEstimatedJsonBytes,
+    });
+    throw new Error('Your photos are too large to submit from this device. Please remove a magnet or choose smaller photos.');
+  }
+
   return optimized;
 }
 
