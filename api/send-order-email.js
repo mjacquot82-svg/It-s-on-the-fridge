@@ -368,14 +368,32 @@ async function insertOrderImages(supabaseUrl, serviceRoleKey, imageRows) {
   }
 
   const baseUrl = supabaseUrl.replace(/\/$/, '');
-  await fetchSupabaseJson(`${baseUrl}/rest/v1/${ORDER_IMAGES_TABLE}`, {
-    method: 'POST',
-    headers: {
-      ...getSupabaseHeaders(serviceRoleKey),
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(imageRows),
-  }, 'Unable to save order image records.');
+  const endpoint = `${baseUrl}/rest/v1/${ORDER_IMAGES_TABLE}`;
+  const headers = {
+    ...getSupabaseHeaders(serviceRoleKey),
+    'Content-Type': 'application/json',
+  };
+
+  try {
+    await fetchSupabaseJson(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(imageRows),
+    }, 'Unable to save order image records.');
+  } catch (error) {
+    // Older databases may not have design_index yet. Retry without it so orders still save.
+    const message = String(error.message || '');
+    if (!/design_index/i.test(message)) {
+      throw error;
+    }
+
+    const legacyRows = imageRows.map(({ design_index, ...row }) => row);
+    await fetchSupabaseJson(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(legacyRows),
+    }, 'Unable to save order image records.');
+  }
 }
 
 async function saveCustomOrderImages(supabaseUrl, serviceRoleKey, orderId, designImages) {
