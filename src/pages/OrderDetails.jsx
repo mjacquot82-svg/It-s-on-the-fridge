@@ -4,8 +4,12 @@ import '../styles/OrderDetails.css';
 
 export default function OrderDetails({ onNext, onBack }) {
   const { order, setCustomerInfo } = useOrder();
-  const [formData, setFormData] = useState(order.customerInfo);
+  const [formData, setFormData] = useState({
+    ...order.customerInfo,
+    quantity: order.quantity || 1,
+  });
   const [errors, setErrors] = useState({});
+  const hasSavedDesigns = (order.designs || []).length > 0;
 
   const validateForm = () => {
     const newErrors = {};
@@ -26,8 +30,8 @@ export default function OrderDetails({ onNext, onBack }) {
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Enter a valid email';
     }
-    if (formData.quantity < 1) {
-      newErrors.quantity = 'Quantity must be at least 1';
+    if (formData.quantity < 1 || formData.quantity > 100) {
+      newErrors.quantity = 'Quantity must be between 1 and 100';
     }
 
     setErrors(newErrors);
@@ -43,7 +47,7 @@ export default function OrderDetails({ onNext, onBack }) {
   };
 
   const handleQuantityChange = (e) => {
-    const value = Math.max(1, parseInt(e.target.value) || 1);
+    const value = Math.max(1, Math.min(100, parseInt(e.target.value, 10) || 1));
     setFormData(prev => ({ ...prev, quantity: value }));
   };
 
@@ -63,7 +67,11 @@ export default function OrderDetails({ onNext, onBack }) {
     <div className="order-details-screen">
       <div className="details-content">
         <h1>Your Information</h1>
-        <p className="subtitle">Jennifer will use this to confirm your order.</p>
+        <p className="subtitle">
+          {hasSavedDesigns
+            ? 'Confirm your contact details and the quantity for this magnet design.'
+            : 'Jennifer will use this to confirm your order.'}
+        </p>
 
         <form className="customer-form">
           <div className="form-row">
@@ -125,12 +133,12 @@ export default function OrderDetails({ onNext, onBack }) {
           </div>
 
           <div className="form-group">
-            <label htmlFor="quantity">Quantity *</label>
+            <label htmlFor="quantity">Quantity for this design *</label>
             <div className="quantity-selector">
               <button
                 type="button"
-                onClick={() => handleQuantityChange({ 
-                  target: { value: formData.quantity - 1 } 
+                onClick={() => handleQuantityChange({
+                  target: { value: formData.quantity - 1 },
                 })}
                 className="qty-btn"
               >
@@ -148,8 +156,8 @@ export default function OrderDetails({ onNext, onBack }) {
               />
               <button
                 type="button"
-                onClick={() => handleQuantityChange({ 
-                  target: { value: formData.quantity + 1 } 
+                onClick={() => handleQuantityChange({
+                  target: { value: formData.quantity + 1 },
                 })}
                 className="qty-btn"
               >
@@ -157,6 +165,9 @@ export default function OrderDetails({ onNext, onBack }) {
               </button>
             </div>
             {errors.quantity && <span className="error-text">{errors.quantity}</span>}
+            <p className="payment-note" style={{ marginTop: '8px' }}>
+              You can add more different designs on the next screen. Copies of this same design use quantity.
+            </p>
           </div>
 
           <div className="form-group">

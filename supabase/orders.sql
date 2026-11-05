@@ -77,3 +77,7 @@ insert into storage.buckets (id, name, public)
 values ('fridge-order-images', 'fridge-order-images', false)
 on conflict (id) do update
 set public = false;
+
+-- Multi-design custom orders (added 2026-11-05):
+-- alter table public.fridge_order_images add column if not exists design_index integer not null default 0;
+-- See supabase/migrations/20261105_multi_custom_designs.sql

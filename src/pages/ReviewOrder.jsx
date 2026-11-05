@@ -1,13 +1,105 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useOrder } from '../context/useOrder';
 import { getPreviewDimensions } from '../utils/cropUtils';
-import { formatCurrency, getMagnetPrice, getOrderTotal } from '../utils/pricing';
+import { getDesignsTotalQuantity, getMagnetTypeLabel, isDraftComplete } from '../utils/customDesigns';
+import { formatCurrency, getCustomDesignsTotal, getMagnetPrice } from '../utils/pricing';
 import '../styles/ReviewOrder.css';
 
 const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
 
-export default function ReviewOrder({ onNext, onBack }) {
-  const { order, pricingSettings, submitOrder } = useOrder();
+function DesignCard({
+  title,
+  design,
+  pricingSettings,
+  onRemove,
+  onQuantityChange,
+  canRemove,
+}) {
+  const dimensions = getPreviewDimensions(design.magnetType);
+  const unitPrice = getMagnetPrice(pricingSettings, design.magnetType);
+  const lineTotal = unitPrice * (Number(design.quantity) || 0);
+
+  return (
+    <div className="design-card">
+      <div className="design-card-header">
+        <h3>{title}</h3>
+        {canRemove && (
+          <button type="button" className="remove-design-button" onClick={onRemove}>
+            Remove
+          </button>
+        )}
+      </div>
+
+      <div
+        className="order-preview design-card-preview"
+        style={{
+          '--preview-width': `${Math.min(dimensions.width, 180)}px`,
+          '--preview-aspect-ratio': dimensions.aspectRatio,
+          borderRadius: dimensions.borderRadius,
+        }}
+      >
+        <img
+          src={design.croppedImage}
+          alt={`${title} preview`}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+          }}
+        />
+      </div>
+
+      <div className="magnet-info">
+        <p className="magnet-type">
+          <strong>Type:</strong> {getMagnetTypeLabel(design.magnetType)}
+        </p>
+        <p className="magnet-type">
+          <strong>Price:</strong> {formatCurrency(unitPrice)} each
+        </p>
+        <div className="design-quantity-row">
+          <span className="label">Qty:</span>
+          <div className="quantity-selector compact">
+            <button
+              type="button"
+              className="qty-btn"
+              onClick={() => onQuantityChange((Number(design.quantity) || 1) - 1)}
+            >
+              −
+            </button>
+            <input
+              type="number"
+              min="1"
+              max="100"
+              value={design.quantity}
+              onChange={(event) => onQuantityChange(event.target.value)}
+            />
+            <button
+              type="button"
+              className="qty-btn"
+              onClick={() => onQuantityChange((Number(design.quantity) || 1) + 1)}
+            >
+              +
+            </button>
+          </div>
+          <span className="design-line-total">{formatCurrency(lineTotal)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function ReviewOrder({ onNext, onBack, onAddAnother }) {
+  const {
+    order,
+    pricingSettings,
+    submitOrder,
+    startAnotherDesign,
+    removeDesign,
+    updateSavedDesignQuantity,
+    setQuantity,
+    clearDraft,
+    resetOrder,
+  } = useOrder();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [captchaToken, setCaptchaToken] = useState('');
@@ -15,9 +107,30 @@ export default function ReviewOrder({ onNext, onBack }) {
   const captchaRef = useRef(null);
   const widgetIdRef = useRef(null);
 
-  const dimensions = getPreviewDimensions(order.magnetType);
-  const unitPrice = getMagnetPrice(pricingSettings, order.magnetType);
-  const estimatedTotal = getOrderTotal(pricingSettings, order.magnetType, order.customerInfo.quantity);
+  const savedDesigns = useMemo(() => order.designs || [], [order.designs]);
+  const draftReady = isDraftComplete(order);
+  const draftDesign = useMemo(() => (
+    draftReady
+      ? {
+          id: 'current-draft',
+          magnetType: order.magnetType,
+          croppedImage: order.croppedImage,
+          quantity: order.quantity || 1,
+        }
+      : null
+  ), [draftReady, order.magnetType, order.croppedImage, order.quantity]);
+
+  const allDesignsForTotals = useMemo(() => {
+    const designs = [...savedDesigns];
+    if (draftDesign) {
+      designs.push(draftDesign);
+    }
+    return designs;
+  }, [savedDesigns, draftDesign]);
+
+  const estimatedTotal = getCustomDesignsTotal(pricingSettings, allDesignsForTotals);
+  const totalQuantity = getDesignsTotalQuantity(allDesignsForTotals);
+  const canSubmit = allDesignsForTotals.length > 0;
 
   useEffect(() => {
     if (!turnstileSiteKey) {
@@ -95,7 +208,38 @@ export default function ReviewOrder({ onNext, onBack }) {
     }
   };
 
-  if (!order.croppedImage) {
+  const handleAddAnother = () => {
+    if (!draftReady && savedDesigns.length === 0) {
+      setSubmitError('Finish this magnet design before adding another.');
+      return;
+    }
+
+    if (!draftReady && (order.photo || order.magnetType)) {
+      setSubmitError('Finish or remove the current magnet design before adding another.');
+      return;
+    }
+
+    const started = startAnotherDesign();
+    if (!started) {
+      setSubmitError('Unable to start another magnet design. Please try again.');
+      return;
+    }
+
+    setSubmitError('');
+    onAddAnother?.();
+  };
+
+  const handleClearDraft = () => {
+    if (savedDesigns.length === 0) {
+      resetOrder();
+      onBack();
+      return;
+    }
+
+    clearDraft();
+  };
+
+  if (!canSubmit) {
     return (
       <div className="review-order-screen">
         <div className="review-content">
@@ -117,44 +261,49 @@ export default function ReviewOrder({ onNext, onBack }) {
     <div className="review-order-screen">
       <div className="review-content">
         <h1>Review Your Order</h1>
-        <p className="subtitle">Please review your magnet preview and contact information.</p>
+        <p className="subtitle">
+          Review each magnet design, then submit one order for Jennifer.
+        </p>
 
-        <div className="preview-section">
-          <h2>Your Magnet</h2>
-          <div
-            className="order-preview"
-            style={{
-              '--preview-width': `${dimensions.width}px`,
-              '--preview-aspect-ratio': dimensions.aspectRatio,
-              borderRadius: dimensions.borderRadius,
-            }}
-          >
-            <img 
-              src={order.croppedImage} 
-              alt="Final preview" 
-              style={{ 
-                width: '100%', 
-                height: '100%', 
-                objectFit: 'cover' 
-              }}
+        <div className="preview-section designs-section">
+          <h2>Your Magnets ({allDesignsForTotals.length})</h2>
+
+          {savedDesigns.map((design, index) => (
+            <DesignCard
+              key={design.id}
+              title={`Magnet ${index + 1}`}
+              design={design}
+              pricingSettings={pricingSettings}
+              canRemove={allDesignsForTotals.length > 1}
+              onRemove={() => removeDesign(design.id)}
+              onQuantityChange={(value) => updateSavedDesignQuantity(design.id, value)}
             />
-          </div>
-          <div className="magnet-info">
-            <p className="magnet-type">
-              <strong>Type:</strong> {order.magnetType === 'round' ? 'Round Magnet' : 'Rectangle Magnet'}
-            </p>
-            <p className="magnet-type">
-              <strong>Price:</strong> {formatCurrency(unitPrice)} each
-            </p>
-            <p className="preview-note">
-              This preview represents what Jennifer will use for printing.
-            </p>
-          </div>
+          ))}
+
+          {draftDesign && (
+            <DesignCard
+              title={`Magnet ${savedDesigns.length + 1}`}
+              design={draftDesign}
+              pricingSettings={pricingSettings}
+              canRemove={allDesignsForTotals.length > 1}
+              onRemove={handleClearDraft}
+              onQuantityChange={(value) => setQuantity(value)}
+            />
+          )}
+
+          <button
+            type="button"
+            className="add-another-button"
+            onClick={handleAddAnother}
+            disabled={isSubmitting || (!draftReady && Boolean(order.photo || order.magnetType))}
+          >
+            Add Another Magnet Design
+          </button>
         </div>
 
         <div className="order-summary">
           <h2>Order Details</h2>
-          
+
           <div className="summary-item">
             <span className="label">Name:</span>
             <span className="value">{order.customerInfo.firstName} {order.customerInfo.lastName}</span>
@@ -171,13 +320,13 @@ export default function ReviewOrder({ onNext, onBack }) {
           </div>
 
           <div className="summary-item">
-            <span className="label">Quantity:</span>
-            <span className="value">{order.customerInfo.quantity}</span>
+            <span className="label">Designs:</span>
+            <span className="value">{allDesignsForTotals.length}</span>
           </div>
 
           <div className="summary-item">
-            <span className="label">Unit Price:</span>
-            <span className="value">{formatCurrency(unitPrice)}</span>
+            <span className="label">Total Magnets:</span>
+            <span className="value">{totalQuantity}</span>
           </div>
 
           <div className="summary-item total-item">
@@ -220,7 +369,7 @@ export default function ReviewOrder({ onNext, onBack }) {
           <button
             className="submit-button"
             onClick={handleSubmit}
-            disabled={isSubmitting || !captchaReady}
+            disabled={isSubmitting || !captchaReady || !canSubmit}
           >
             {isSubmitting ? 'Sending Order...' : submitError ? 'Retry Sending Order' : 'Submit Order'}
           </button>

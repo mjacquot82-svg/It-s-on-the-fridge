@@ -99,6 +99,47 @@ function getOrderType(order) {
   return order.orderType === 'ready-made' ? 'ready_made' : 'custom_photo';
 }
 
+function getMagnetTypeLabel(magnetType) {
+  return magnetType === 'round' ? 'Round Magnet' : 'Rectangle Magnet';
+}
+
+function normalizeCustomDesigns(order) {
+  if (Array.isArray(order?.customDesigns) && order.customDesigns.length > 0) {
+    return order.customDesigns.map((design, index) => ({
+      id: design.id || `design-${index + 1}`,
+      magnetType: design.magnetType === 'round' ? 'round' : 'rectangle',
+      photo: design.photo,
+      crop: design.crop || null,
+      croppedAreaPixels: design.croppedAreaPixels || null,
+      zoom: design.zoom || null,
+      croppedImage: design.croppedImage,
+      cropVerification: design.cropVerification || null,
+      quantity: Number(design.quantity),
+    }));
+  }
+
+  if (order?.photo && order?.croppedImage) {
+    return [{
+      id: 'design-1',
+      magnetType: order.magnetType === 'round' ? 'round' : 'rectangle',
+      photo: order.photo,
+      crop: order.crop || null,
+      croppedAreaPixels: order.croppedAreaPixels || null,
+      zoom: order.zoom || null,
+      croppedImage: order.croppedImage,
+      cropVerification: order.cropVerification || null,
+      quantity: Number(order.customerInfo?.quantity),
+    }];
+  }
+
+  return [];
+}
+
+function getCustomDesignsTotalQuantity(designs) {
+  return designs.reduce((total, design) => total + Number(design.quantity || 0), 0);
+}
+
+
 function getCustomerName(order) {
   if (order.orderType === 'ready-made') {
     return order.customerInfo.name.trim();
@@ -108,15 +149,29 @@ function getCustomerName(order) {
 }
 
 function sanitizeCustomOrderPayload(order) {
+  const designs = normalizeCustomDesigns(order);
   return {
     id: order.id,
     submittedAt: order.submittedAt,
-    magnetType: order.magnetType === 'round' ? 'round' : 'rectangle',
-    crop: order.crop || null,
-    croppedAreaPixels: order.croppedAreaPixels || null,
-    zoom: order.zoom || null,
-    cropVerification: order.cropVerification || null,
-    customerInfo: order.customerInfo,
+    customerInfo: {
+      firstName: order.customerInfo.firstName,
+      lastName: order.customerInfo.lastName,
+      phone: order.customerInfo.phone,
+      email: order.customerInfo.email,
+      notes: order.customerInfo.notes || '',
+    },
+    totalQuantity: getCustomDesignsTotalQuantity(designs),
+    customDesigns: designs.map(design => ({
+      id: design.id,
+      magnetType: design.magnetType,
+      quantity: design.quantity,
+      crop: design.crop,
+      croppedAreaPixels: design.croppedAreaPixels,
+      zoom: design.zoom,
+      cropVerification: design.cropVerification,
+    })),
+    // Legacy fields for older admin tooling.
+    magnetType: designs[0]?.magnetType || null,
   };
 }
 
@@ -139,9 +194,11 @@ function sanitizeReadyMadeOrderPayload(order) {
 function buildOrderRecord(order, publicOrderNumber) {
   const isReadyMadeOrder = order.orderType === 'ready-made';
   const customerInfo = order.customerInfo;
+  const customDesigns = isReadyMadeOrder ? [] : normalizeCustomDesigns(order);
   const totalQuantity = isReadyMadeOrder
     ? Number(order.totalQuantity)
-    : Number(customerInfo.quantity);
+    : getCustomDesignsTotalQuantity(customDesigns);
+  const uniqueMagnetTypes = [...new Set(customDesigns.map(design => design.magnetType))];
 
   return {
     public_order_number: publicOrderNumber,
@@ -154,7 +211,9 @@ function buildOrderRecord(order, publicOrderNumber) {
     customer_phone: customerInfo.phone,
     customer_notes: isReadyMadeOrder ? null : customerInfo.notes || null,
     total_quantity: totalQuantity,
-    magnet_type: isReadyMadeOrder ? null : (order.magnetType === 'round' ? 'round' : 'rectangle'),
+    magnet_type: isReadyMadeOrder
+      ? null
+      : (uniqueMagnetTypes.length === 1 ? uniqueMagnetTypes[0] : null),
     order_payload: isReadyMadeOrder ? sanitizeReadyMadeOrderPayload(order) : sanitizeCustomOrderPayload(order),
     submitted_at: order.submittedAt || new Date().toISOString(),
   };
@@ -271,11 +330,11 @@ async function insertOrderItems(supabaseUrl, serviceRoleKey, orderId, order) {
   }, 'Unable to save ready-made order items.');
 }
 
-async function uploadOrderImage(supabaseUrl, serviceRoleKey, orderId, imageType, image) {
+async function uploadOrderImage(supabaseUrl, serviceRoleKey, orderId, imageType, image, designIndex = 0) {
   const baseUrl = supabaseUrl.replace(/\/$/, '');
   const extension = getFileExtension(image.contentType);
   const fileName = imageType === 'original' ? `original.${extension}` : `print-ready.${extension}`;
-  const objectPath = `fridge-orders/${orderId}/${fileName}`;
+  const objectPath = `fridge-orders/${orderId}/design-${designIndex + 1}/${fileName}`;
   const uploadUrl = `${baseUrl}/storage/v1/object/${ORDER_IMAGES_BUCKET}/${objectPath}`;
   const response = await fetch(uploadUrl, {
     method: 'POST',
@@ -295,6 +354,7 @@ async function uploadOrderImage(supabaseUrl, serviceRoleKey, orderId, imageType,
   return {
     order_id: orderId,
     image_type: imageType,
+    design_index: designIndex,
     bucket: ORDER_IMAGES_BUCKET,
     object_path: objectPath,
     content_type: image.contentType,
@@ -308,21 +368,56 @@ async function insertOrderImages(supabaseUrl, serviceRoleKey, imageRows) {
   }
 
   const baseUrl = supabaseUrl.replace(/\/$/, '');
-  await fetchSupabaseJson(`${baseUrl}/rest/v1/${ORDER_IMAGES_TABLE}`, {
-    method: 'POST',
-    headers: {
-      ...getSupabaseHeaders(serviceRoleKey),
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(imageRows),
-  }, 'Unable to save order image records.');
+  const endpoint = `${baseUrl}/rest/v1/${ORDER_IMAGES_TABLE}`;
+  const headers = {
+    ...getSupabaseHeaders(serviceRoleKey),
+    'Content-Type': 'application/json',
+  };
+
+  try {
+    await fetchSupabaseJson(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(imageRows),
+    }, 'Unable to save order image records.');
+  } catch (error) {
+    // Older databases may not have design_index yet. Retry without it so orders still save.
+    const message = String(error.message || '');
+    if (!/design_index/i.test(message)) {
+      throw error;
+    }
+
+    const legacyRows = imageRows.map(({ design_index, ...row }) => row);
+    await fetchSupabaseJson(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(legacyRows),
+    }, 'Unable to save order image records.');
+  }
 }
 
-async function saveCustomOrderImages(supabaseUrl, serviceRoleKey, orderId, originalImage, croppedImage) {
+async function saveCustomOrderImages(supabaseUrl, serviceRoleKey, orderId, designImages) {
   const imageRows = [];
 
-  imageRows.push(await uploadOrderImage(supabaseUrl, serviceRoleKey, orderId, 'original', originalImage));
-  imageRows.push(await uploadOrderImage(supabaseUrl, serviceRoleKey, orderId, 'print_ready', croppedImage));
+  for (const entry of designImages) {
+    imageRows.push(await uploadOrderImage(
+      supabaseUrl,
+      serviceRoleKey,
+      orderId,
+      'original',
+      entry.originalImage,
+      entry.designIndex,
+    ));
+    imageRows.push(await uploadOrderImage(
+      supabaseUrl,
+      serviceRoleKey,
+      orderId,
+      'print_ready',
+      entry.croppedImage,
+      entry.designIndex,
+    ));
+  }
+
   await insertOrderImages(supabaseUrl, serviceRoleKey, imageRows);
 }
 
@@ -411,8 +506,12 @@ function buildHtml(order) {
   }
 
   const { customerInfo } = order;
-  const magnetType = order.magnetType === 'round' ? 'Round Magnet' : 'Rectangle Magnet';
+  const designs = normalizeCustomDesigns(order);
+  const totalQuantity = getCustomDesignsTotalQuantity(designs);
   const submittedAt = new Date(order.submittedAt).toLocaleString();
+  const designRows = designs.map((design, index) => (
+    `<li><strong>Magnet ${index + 1}:</strong> ${escapeHtml(getMagnetTypeLabel(design.magnetType))} × ${escapeHtml(design.quantity)}</li>`
+  )).join('');
 
   return `
     <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.45;">
@@ -428,14 +527,14 @@ function buildHtml(order) {
       <p><strong>Notes:</strong> ${escapeHtml(customerInfo.notes || 'None')}</p>
 
       <h2 style="font-size: 18px;">Order</h2>
-      <p><strong>Magnet Type:</strong> ${escapeHtml(magnetType)}</p>
-      <p><strong>Quantity:</strong> ${escapeHtml(customerInfo.quantity)}</p>
+      <ul>${designRows}</ul>
+      <p><strong>Design Count:</strong> ${escapeHtml(designs.length)}</p>
+      <p><strong>Total Magnets:</strong> ${escapeHtml(totalQuantity)}</p>
       <p><strong>Order ID:</strong> ${escapeHtml(order.id)}</p>
       <p><strong>Submitted:</strong> ${escapeHtml(submittedAt)}</p>
 
       <h2 style="font-size: 18px;">Attached Images</h2>
-      <p><strong>Original Customer Photo:</strong> the photo the customer uploaded.</p>
-      <p><strong>Print-Ready Magnet Image:</strong> the cropped image Jennifer should use for printing.</p>
+      <p>Each magnet design includes an original customer photo and a print-ready cropped image.</p>
 
       <div style="background: #fff8df; border-left: 4px solid #ffe22e; padding: 12px; margin-top: 18px;">
         Jennifer will contact the customer to confirm pickup and payment.
@@ -485,8 +584,12 @@ function buildText(order) {
   }
 
   const { customerInfo } = order;
-  const magnetType = order.magnetType === 'round' ? 'Round Magnet' : 'Rectangle Magnet';
+  const designs = normalizeCustomDesigns(order);
+  const totalQuantity = getCustomDesignsTotalQuantity(designs);
   const submittedAt = new Date(order.submittedAt).toLocaleString();
+  const designLines = designs.map((design, index) => (
+    `Magnet ${index + 1}: ${getMagnetTypeLabel(design.magnetType)} x ${design.quantity}`
+  ));
 
   return [
     "It's On The Fridge",
@@ -499,14 +602,14 @@ function buildText(order) {
     `Notes: ${customerInfo.notes || 'None'}`,
     '',
     'Order:',
-    `Magnet Type: ${magnetType}`,
-    `Quantity: ${customerInfo.quantity}`,
+    ...designLines,
+    `Design Count: ${designs.length}`,
+    `Total Magnets: ${totalQuantity}`,
     `Order ID: ${order.id}`,
     `Submitted: ${submittedAt}`,
     '',
     'Attached Images:',
-    '- Original Customer Photo: the photo the customer uploaded.',
-    '- Print-Ready Magnet Image: the cropped image Jennifer should use for printing.',
+    '- Each design includes an original customer photo and a print-ready magnet image.',
     '',
     'Jennifer will contact the customer to confirm pickup and payment.',
   ].join('\n');
@@ -571,13 +674,31 @@ function validateOrder(order) {
     throw createHttpError('A valid email address is required', 400);
   }
 
-  const quantity = Number(customerInfo.quantity);
-  if (!Number.isFinite(quantity) || quantity < 1 || quantity > 100) {
-    throw createHttpError('Quantity must be between 1 and 100', 400);
+  const designs = normalizeCustomDesigns(order);
+  if (designs.length === 0) {
+    throw createHttpError('At least one custom magnet design is required', 400);
   }
 
-  if (!order.photo || !order.croppedImage) {
-    throw createHttpError('Missing order image attachments', 400);
+  if (designs.length > 10) {
+    throw createHttpError('A single order can include up to 10 custom magnet designs', 400);
+  }
+
+  let totalQuantity = 0;
+  designs.forEach((design, index) => {
+    if (!design.photo || !design.croppedImage) {
+      throw createHttpError(`Missing image attachments for magnet design ${index + 1}`, 400);
+    }
+
+    const quantity = Number(design.quantity);
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) {
+      throw createHttpError(`Quantity for magnet design ${index + 1} must be between 1 and 100`, 400);
+    }
+
+    totalQuantity += quantity;
+  });
+
+  if (totalQuantity < 1 || totalQuantity > 100) {
+    throw createHttpError('Total magnet quantity across all designs must be between 1 and 100', 400);
   }
 }
 
@@ -655,29 +776,63 @@ export default async function handler(req, res) {
     const customerName = isReadyMadeOrder
       ? order.customerInfo.name.trim()
       : `${order.customerInfo.firstName} ${order.customerInfo.lastName}`.trim();
-    let originalImage = null;
-    let croppedImage = null;
+    let designImages = [];
 
     if (!isReadyMadeOrder) {
-      originalImage = parseDataUrl(order.photo, `order-${order.id}-original`, MAX_ORIGINAL_IMAGE_BYTES);
-      croppedImage = parseDataUrl(order.croppedImage, `order-${order.id}-print`, MAX_CROPPED_IMAGE_BYTES);
+      const designs = normalizeCustomDesigns(order);
+      let totalAttachmentBytes = 0;
 
-      if (originalImage.sizeBytes + croppedImage.sizeBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
-        throw createHttpError('Order images are too large. Please upload a smaller photo and try again.', 413);
-      }
+      designs.forEach((design, index) => {
+        const originalImage = parseDataUrl(
+          design.photo,
+          `order-${order.id}-design-${index + 1}-original`,
+          MAX_ORIGINAL_IMAGE_BYTES,
+        );
+        const croppedImage = parseDataUrl(
+          design.croppedImage,
+          `order-${order.id}-design-${index + 1}-print`,
+          MAX_CROPPED_IMAGE_BYTES,
+        );
 
-      attachments.push(
-        {
-          content: originalImage.content,
-          filename: `Original Customer Photo.${originalImage.filename.split('.').pop()}`,
-          contentType: originalImage.contentType,
-        },
-        {
-          content: croppedImage.content,
-          filename: `Print-Ready Magnet Image.${croppedImage.filename.split('.').pop()}`,
-          contentType: croppedImage.contentType,
+        totalAttachmentBytes += originalImage.sizeBytes + croppedImage.sizeBytes;
+        designImages.push({
+          designIndex: index,
+          originalImage,
+          croppedImage,
+        });
+
+        const suffix = designs.length > 1 ? ` ${index + 1}` : '';
+        attachments.push(
+          {
+            content: originalImage.content,
+            filename: `Original Customer Photo${suffix}.${originalImage.filename.split('.').pop()}`,
+            contentType: originalImage.contentType,
+          },
+          {
+            content: croppedImage.content,
+            filename: `Print-Ready Magnet Image${suffix}.${croppedImage.filename.split('.').pop()}`,
+            contentType: croppedImage.contentType,
+          },
+        );
+      });
+
+      // Soft cap for email attachments; durable storage still keeps every design image.
+      if (totalAttachmentBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
+        attachments.length = 0;
+        designImages.forEach((entry, index) => {
+          const suffix = designImages.length > 1 ? ` ${index + 1}` : '';
+          attachments.push({
+            content: entry.croppedImage.content,
+            filename: `Print-Ready Magnet Image${suffix}.${entry.croppedImage.filename.split('.').pop()}`,
+            contentType: entry.croppedImage.contentType,
+          });
+        });
+
+        const printOnlyBytes = designImages.reduce((total, entry) => total + entry.croppedImage.sizeBytes, 0);
+        if (printOnlyBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
+          throw createHttpError('Order images are too large. Please remove a magnet design or use smaller photos.', 413);
         }
-      );
+      }
     }
 
     let durableOrder = null;
@@ -692,7 +847,7 @@ export default async function handler(req, res) {
         if (isReadyMadeOrder) {
           await insertOrderItems(supabaseUrl, serviceRoleKey, durableOrder.id, order);
         } else {
-          await saveCustomOrderImages(supabaseUrl, serviceRoleKey, durableOrder.id, originalImage, croppedImage);
+          await saveCustomOrderImages(supabaseUrl, serviceRoleKey, durableOrder.id, designImages);
         }
 
         await updateOrderEmailStatus(supabaseUrl, serviceRoleKey, durableOrder.id, {

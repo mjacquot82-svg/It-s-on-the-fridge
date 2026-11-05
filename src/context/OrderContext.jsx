@@ -7,24 +7,20 @@ import {
   normalizePricingSettings,
   savePricingSettings,
 } from '../utils/appSettings';
-import { getDataUrlBytes, optimizeOrderImagesForSubmission } from '../utils/cropUtils';
+import { getDataUrlBytes, optimizeCustomDesignsForSubmission } from '../utils/cropUtils';
+import {
+  createEmptyCustomerInfo,
+  createEmptyDraft,
+  draftToDesign,
+  getDesignsTotalQuantity,
+  getReviewDesigns,
+  isDraftComplete,
+} from '../utils/customDesigns';
 
 const emptyOrder = {
-  magnetType: null,
-  photo: null,
-  crop: { x: 0, y: 0 },
-  croppedAreaPixels: null,
-  zoom: 1,
-  croppedImage: null,
-  cropVerification: null,
-  customerInfo: {
-    firstName: '',
-    lastName: '',
-    phone: '',
-    email: '',
-    quantity: 1,
-    notes: '',
-  },
+  ...createEmptyDraft(),
+  customerInfo: createEmptyCustomerInfo(),
+  designs: [],
 };
 
 function parseStoredValue(key, fallback) {
@@ -73,7 +69,22 @@ function sanitizeEmailPayload(emailPayload) {
     orderDate: emailPayload.orderDate,
     customer: emailPayload.customer,
     product: emailPayload.product,
+    designs: emailPayload.designs,
     cropDetails: emailPayload.cropDetails,
+  };
+}
+
+function sanitizeDesignForStorage(design) {
+  if (!design) {
+    return null;
+  }
+
+  return {
+    ...design,
+    photo: null,
+    croppedImage: null,
+    originalImage: getImageMetadata(design.photo),
+    finalImage: getImageMetadata(design.croppedImage),
   };
 }
 
@@ -82,10 +93,18 @@ function sanitizeOrderForStorage(orderToStore) {
     return null;
   }
 
+  const designs = Array.isArray(orderToStore.customDesigns)
+    ? orderToStore.customDesigns.map(sanitizeDesignForStorage)
+    : Array.isArray(orderToStore.designs)
+      ? orderToStore.designs.map(sanitizeDesignForStorage)
+      : [];
+
   return {
     ...orderToStore,
     photo: null,
     croppedImage: null,
+    designs,
+    customDesigns: designs,
     originalImage: getImageMetadata(orderToStore.photo),
     finalImage: getImageMetadata(orderToStore.croppedImage),
     emailPayload: sanitizeEmailPayload(orderToStore.emailPayload),
@@ -100,16 +119,21 @@ function saveStoredValue(key, value) {
   }
 }
 
-function validateSubmissionPayloadSize(order, actualJsonPayloadBytes) {
-  const originalBytes = getDataUrlBytes(order.photo);
-  const croppedBytes = getDataUrlBytes(order.croppedImage);
-  const estimatedJsonBytes = Math.ceil((originalBytes + croppedBytes) * 1.4);
+function getDesignsPayloadBytes(designs) {
+  return (designs || []).reduce((total, design) => {
+    return total + getDataUrlBytes(design.photo) + getDataUrlBytes(design.croppedImage);
+  }, 0);
+}
+
+function validateSubmissionPayloadSize(designs, actualJsonPayloadBytes) {
+  const imageBytes = getDesignsPayloadBytes(designs);
+  const estimatedJsonBytes = Math.ceil(imageBytes * 1.4);
   const maxActualJsonPayloadBytes = 4 * 1024 * 1024;
 
   logImageSubmissionDiagnostic('client payload validation', {
     stage: 'client payload validation',
-    originalImageBytes: originalBytes,
-    croppedImageBytes: croppedBytes,
+    designCount: designs.length,
+    originalImageBytes: imageBytes,
     estimatedPayloadBytes: estimatedJsonBytes,
     actualJsonPayloadBytes,
     maxActualJsonPayloadBytes,
@@ -118,13 +142,12 @@ function validateSubmissionPayloadSize(order, actualJsonPayloadBytes) {
   if (actualJsonPayloadBytes > maxActualJsonPayloadBytes) {
     logImageSubmissionDiagnostic('rejected during client payload validation', {
       stage: 'client payload validation',
-      originalImageBytes: originalBytes,
-      croppedImageBytes: croppedBytes,
+      designCount: designs.length,
       estimatedPayloadBytes: estimatedJsonBytes,
       actualJsonPayloadBytes,
       maxActualJsonPayloadBytes,
     });
-    throw new Error('Your photo is too large to submit from this device. Please go back and choose a smaller photo, or take a screenshot of the photo and upload that instead.');
+    throw new Error('Your photos are too large to submit from this device. Please remove a magnet or choose smaller photos.');
   }
 }
 
@@ -134,9 +157,8 @@ async function sendOrderEmail(order, turnstileToken) {
 
   logImageSubmissionDiagnostic('api request payload', {
     stage: 'api request',
-    originalImageBytes: getDataUrlBytes(order.photo),
-    croppedImageBytes: getDataUrlBytes(order.croppedImage),
-    estimatedPayloadBytes: Math.ceil((getDataUrlBytes(order.photo) + getDataUrlBytes(order.croppedImage)) * 1.4),
+    designCount: order.customDesigns?.length || 0,
+    estimatedPayloadBytes: Math.ceil(getDesignsPayloadBytes(order.customDesigns) * 1.4),
     actualJsonPayloadBytes,
   });
 
@@ -161,6 +183,18 @@ async function sendOrderEmail(order, turnstileToken) {
   }
 
   return data;
+}
+
+function clearWorkflowStorage() {
+  try {
+    localStorage.removeItem('currentOrder');
+    localStorage.removeItem('currentPage');
+    localStorage.removeItem('lastSubmittedOrder');
+    sessionStorage.removeItem('currentPage');
+    sessionStorage.removeItem('lastSubmittedOrder');
+  } catch (error) {
+    console.warn('Unable to clear workflow storage:', error);
+  }
 }
 
 export function OrderProvider({ children }) {
@@ -191,7 +225,6 @@ export function OrderProvider({ children }) {
   });
   const [pricingSettingsStatus, setPricingSettingsStatus] = useState('loading');
 
-  // Persist only lightweight order history metadata.
   useEffect(() => {
     saveStoredValue('orders', orders.map(sanitizeOrderForStorage));
   }, [orders]);
@@ -279,44 +312,168 @@ export function OrderProvider({ children }) {
     setOrder(prev => ({ ...prev, cropVerification }));
   };
 
-  const setCustomerInfo = (info) => {
+  const setQuantity = (quantity) => {
     setOrder(prev => ({
       ...prev,
-      customerInfo: { ...prev.customerInfo, ...info },
+      quantity: Math.max(1, Math.min(100, Number(quantity) || 1)),
+    }));
+  };
+
+  const setCustomerInfo = (info) => {
+    const { quantity, ...customerFields } = info || {};
+    setOrder(prev => ({
+      ...prev,
+      customerInfo: { ...prev.customerInfo, ...customerFields },
+      ...(quantity !== undefined
+        ? { quantity: Math.max(1, Math.min(100, Number(quantity) || 1)) }
+        : {}),
+    }));
+  };
+
+  const commitCurrentDesign = () => {
+    let committed = false;
+
+    setOrder(prev => {
+      if (!isDraftComplete(prev)) {
+        return prev;
+      }
+
+      committed = true;
+      const nextDesigns = [...(prev.designs || []), draftToDesign(prev)];
+      return {
+        ...prev,
+        ...createEmptyDraft(),
+        customerInfo: prev.customerInfo,
+        designs: nextDesigns,
+      };
+    });
+
+    return committed;
+  };
+
+  const startAnotherDesign = () => {
+    let ok = false;
+
+    setOrder(prev => {
+      const hasSavedDesigns = (prev.designs || []).length > 0;
+      const draftComplete = isDraftComplete(prev);
+      const draftStarted = Boolean(prev.photo || prev.magnetType || prev.croppedImage);
+
+      if (!draftComplete && !hasSavedDesigns) {
+        return prev;
+      }
+
+      // An unfinished draft must be finished or cleared before starting another.
+      if (!draftComplete && draftStarted) {
+        return prev;
+      }
+
+      const nextDesigns = draftComplete
+        ? [...(prev.designs || []), draftToDesign(prev)]
+        : [...(prev.designs || [])];
+
+      if (nextDesigns.length === 0) {
+        return prev;
+      }
+
+      ok = true;
+      return {
+        ...prev,
+        ...createEmptyDraft(),
+        customerInfo: prev.customerInfo,
+        designs: nextDesigns,
+      };
+    });
+
+    return ok;
+  };
+
+  const removeDesign = (designId) => {
+    setOrder(prev => ({
+      ...prev,
+      designs: (prev.designs || []).filter(design => design.id !== designId),
+    }));
+  };
+
+  const updateSavedDesignQuantity = (designId, quantity) => {
+    const nextQuantity = Math.max(1, Math.min(100, Number(quantity) || 1));
+    setOrder(prev => ({
+      ...prev,
+      designs: (prev.designs || []).map(design => (
+        design.id === designId
+          ? { ...design, quantity: nextQuantity }
+          : design
+      )),
+    }));
+  };
+
+  const clearDraft = () => {
+    setOrder(prev => ({
+      ...prev,
+      ...createEmptyDraft(),
+      customerInfo: prev.customerInfo,
+      designs: prev.designs || [],
     }));
   };
 
   const submitOrder = async (turnstileToken) => {
+    const reviewDesigns = getReviewDesigns(order);
+
+    if (reviewDesigns.length === 0) {
+      throw new Error('Add at least one custom magnet design before submitting.');
+    }
+
+    const totalQuantity = getDesignsTotalQuantity(reviewDesigns);
+    if (totalQuantity < 1 || totalQuantity > 100) {
+      throw new Error('Total magnet quantity across all designs must be between 1 and 100.');
+    }
+
     logImageSubmissionDiagnostic('submission started', {
       stage: 'submission start',
-      originalImageBytes: getDataUrlBytes(order.photo),
-      croppedImageBytes: getDataUrlBytes(order.croppedImage),
-      estimatedPayloadBytes: Math.ceil((getDataUrlBytes(order.photo) + getDataUrlBytes(order.croppedImage)) * 1.4),
+      designCount: reviewDesigns.length,
+      totalQuantity,
+      estimatedPayloadBytes: Math.ceil(getDesignsPayloadBytes(reviewDesigns) * 1.4),
     });
 
-    const newOrder = await optimizeOrderImagesForSubmission({
-      ...order,
+    const optimizedDesigns = await optimizeCustomDesignsForSubmission(reviewDesigns);
+    const primaryDesign = optimizedDesigns[0];
+
+    const newOrder = {
       id: Date.now(),
       submittedAt: new Date().toISOString(),
-    });
+      orderType: 'custom-photo',
+      customerInfo: {
+        ...order.customerInfo,
+        quantity: totalQuantity,
+      },
+      customDesigns: optimizedDesigns,
+      designs: optimizedDesigns,
+      totalQuantity,
+      // Legacy single-design fields kept for older email helpers / confirmation UI.
+      magnetType: primaryDesign.magnetType,
+      photo: primaryDesign.photo,
+      crop: primaryDesign.crop,
+      croppedAreaPixels: primaryDesign.croppedAreaPixels,
+      zoom: primaryDesign.zoom,
+      croppedImage: primaryDesign.croppedImage,
+      cropVerification: primaryDesign.cropVerification,
+      quantity: primaryDesign.quantity,
+    };
 
     const pendingRequestBody = JSON.stringify({ order: newOrder, turnstileToken });
     logImageSubmissionDiagnostic('actual payload before client validation', {
       stage: 'pre-client payload validation',
-      originalImageBytes: getDataUrlBytes(newOrder.photo),
-      croppedImageBytes: getDataUrlBytes(newOrder.croppedImage),
-      estimatedPayloadBytes: Math.ceil((getDataUrlBytes(newOrder.photo) + getDataUrlBytes(newOrder.croppedImage)) * 1.4),
+      designCount: optimizedDesigns.length,
+      estimatedPayloadBytes: Math.ceil(getDesignsPayloadBytes(optimizedDesigns) * 1.4),
       actualJsonPayloadBytes: getStringBytes(pendingRequestBody),
     });
 
-    validateSubmissionPayloadSize(newOrder, getStringBytes(pendingRequestBody));
+    validateSubmissionPayloadSize(optimizedDesigns, getStringBytes(pendingRequestBody));
 
     const emailDelivery = await sendOrderEmail(newOrder, turnstileToken);
-    
-    // Generate email payload for Jennifer
+
     const emailPayload = sanitizeEmailPayload(createEmailPayload(newOrder));
-    
-    // Store both the order and email payload
+
     const storedOrder = {
       ...newOrder,
       clientOrderId: newOrder.id,
@@ -325,35 +482,18 @@ export function OrderProvider({ children }) {
       emailPayload,
       emailDelivery,
     };
-    
+
     setOrders(prev => [...prev, sanitizeOrderForStorage(storedOrder)]);
     setLastSubmittedOrder(storedOrder);
-    
-    // Reset current order
     setOrder(emptyOrder);
-    try {
-      localStorage.removeItem('currentOrder');
-      localStorage.removeItem('currentPage');
-      sessionStorage.removeItem('currentPage');
-      sessionStorage.removeItem('lastSubmittedOrder');
-    } catch (error) {
-      console.warn('Unable to clear completed workflow storage:', error);
-    }
+    clearWorkflowStorage();
 
     return storedOrder;
   };
 
   const resetOrder = () => {
     setOrder(emptyOrder);
-    try {
-      localStorage.removeItem('currentOrder');
-      localStorage.removeItem('currentPage');
-      localStorage.removeItem('lastSubmittedOrder');
-      sessionStorage.removeItem('currentPage');
-      sessionStorage.removeItem('lastSubmittedOrder');
-    } catch (error) {
-      console.warn('Unable to clear workflow storage:', error);
-    }
+    clearWorkflowStorage();
   };
 
   return (
@@ -372,7 +512,13 @@ export function OrderProvider({ children }) {
         setZoom,
         setCroppedImage,
         setCropVerification,
+        setQuantity,
         setCustomerInfo,
+        commitCurrentDesign,
+        startAnotherDesign,
+        removeDesign,
+        updateSavedDesignQuantity,
+        clearDraft,
         submitOrder,
         resetOrder,
       }}

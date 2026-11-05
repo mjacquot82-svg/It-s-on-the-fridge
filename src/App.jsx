@@ -14,8 +14,11 @@ import InstallPage from './pages/InstallPage';
 import BuildVersion from './components/BuildVersion';
 import './App.css';
 
+const MAGNET_TYPE_PAGE = 1;
+const REVIEW_PAGE = 5;
+
 function AppContent() {
-  const { resetOrder } = useOrder();
+  const { resetOrder, order } = useOrder();
   const [pathname, setPathname] = useState(() => window.location.pathname);
   const [isReadyMadeOpen, setIsReadyMadeOpen] = useState(false);
   const pages = useMemo(() => [
@@ -31,6 +34,7 @@ function AppContent() {
   const [currentPage, setCurrentPage] = useState(0);
 
   const CurrentPage = pages[currentPage].component;
+  const hasSavedDesigns = (order.designs || []).length > 0;
 
   useEffect(() => {
     const handlePopState = () => {
@@ -48,6 +52,11 @@ function AppContent() {
   };
 
   const handleBack = () => {
+    if (currentPage === MAGNET_TYPE_PAGE && hasSavedDesigns) {
+      setCurrentPage(REVIEW_PAGE);
+      return;
+    }
+
     if (currentPage > 0) {
       setCurrentPage(currentPage - 1);
     }
@@ -56,6 +65,10 @@ function AppContent() {
   const handleRestart = () => {
     resetOrder();
     setCurrentPage(0);
+  };
+
+  const handleAddAnother = () => {
+    setCurrentPage(MAGNET_TYPE_PAGE);
   };
 
   const handleStartDesigning = () => {
@@ -70,6 +83,7 @@ function AppContent() {
     onNext: handleNext,
     onBack: handleBack,
     onBrowseReadyMade: () => setIsReadyMadeOpen(true),
+    onAddAnother: handleAddAnother,
   };
 
   if (pathname === '/install') {
@@ -107,8 +121,8 @@ function AppContent() {
       {currentPage < pages.length - 1 ? (
         <>
           <div className="progress-bar">
-            <div 
-              className="progress-fill" 
+            <div
+              className="progress-fill"
               style={{ width: `${((currentPage + 1) / (pages.length - 1)) * 100}%` }}
             ></div>
           </div>
