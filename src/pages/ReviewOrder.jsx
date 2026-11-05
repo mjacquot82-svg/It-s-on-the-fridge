@@ -102,6 +102,7 @@ export default function ReviewOrder({ onNext, onBack, onAddAnother }) {
   } = useOrder();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [errorIsFromSubmit, setErrorIsFromSubmit] = useState(false);
   const [captchaToken, setCaptchaToken] = useState('');
   const [captchaReady, setCaptchaReady] = useState(!turnstileSiteKey);
   const captchaRef = useRef(null);
@@ -185,18 +186,21 @@ export default function ReviewOrder({ onNext, onBack, onAddAnother }) {
 
   const handleSubmit = async () => {
     if (turnstileSiteKey && !captchaToken) {
+      setErrorIsFromSubmit(true);
       setSubmitError('Please complete the order verification before submitting.');
       return;
     }
 
     setIsSubmitting(true);
     setSubmitError('');
+    setErrorIsFromSubmit(false);
 
     try {
       const submittedOrder = await submitOrder(captchaToken || null);
       console.log('Order submitted:', submittedOrder);
       onNext();
     } catch (error) {
+      setErrorIsFromSubmit(true);
       setSubmitError(error.message || 'Unable to send your order. Please try again.');
       if (window.turnstile && widgetIdRef.current) {
         window.turnstile.reset(widgetIdRef.current);
@@ -210,22 +214,26 @@ export default function ReviewOrder({ onNext, onBack, onAddAnother }) {
 
   const handleAddAnother = () => {
     if (!draftReady && savedDesigns.length === 0) {
+      setErrorIsFromSubmit(false);
       setSubmitError('Finish this magnet design before adding another.');
       return;
     }
 
     if (!draftReady && (order.photo || order.magnetType)) {
+      setErrorIsFromSubmit(false);
       setSubmitError('Finish or remove the current magnet design before adding another.');
       return;
     }
 
     const started = startAnotherDesign();
     if (!started) {
+      setErrorIsFromSubmit(false);
       setSubmitError('Unable to start another magnet design. Please try again.');
       return;
     }
 
     setSubmitError('');
+    setErrorIsFromSubmit(false);
     onAddAnother?.();
   };
 
@@ -371,7 +379,11 @@ export default function ReviewOrder({ onNext, onBack, onAddAnother }) {
             onClick={handleSubmit}
             disabled={isSubmitting || !captchaReady || !canSubmit}
           >
-            {isSubmitting ? 'Sending Order...' : submitError ? 'Retry Sending Order' : 'Submit Order'}
+            {isSubmitting
+              ? 'Sending Order...'
+              : submitError && errorIsFromSubmit
+                ? 'Retry Sending Order'
+                : 'Submit Order'}
           </button>
         </div>
       </div>
