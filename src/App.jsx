@@ -15,7 +15,17 @@ import BuildVersion from './components/BuildVersion';
 import './App.css';
 
 const MAGNET_TYPE_PAGE = 1;
+const ADJUST_PHOTO_PAGE = 3;
 const REVIEW_PAGE = 5;
+
+function hasContactInfo(customerInfo) {
+  return Boolean(
+    customerInfo?.firstName?.trim() &&
+    customerInfo?.lastName?.trim() &&
+    customerInfo?.phone?.trim() &&
+    customerInfo?.email?.trim()
+  );
+}
 
 function AppContent() {
   const { resetOrder, order } = useOrder();
@@ -46,6 +56,18 @@ function AppContent() {
   }, []);
 
   const handleNext = () => {
+    // After the first design, contact info is already on the order. Skip the
+    // details form so "Add Another Magnet Design" goes: type → photo → review.
+    // Per-design quantity can still be edited on the review screen.
+    if (
+      currentPage === ADJUST_PHOTO_PAGE &&
+      hasSavedDesigns &&
+      hasContactInfo(order.customerInfo)
+    ) {
+      setCurrentPage(REVIEW_PAGE);
+      return;
+    }
+
     if (currentPage < pages.length - 1) {
       setCurrentPage(currentPage + 1);
     }

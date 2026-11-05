@@ -331,44 +331,66 @@ export function OrderProvider({ children }) {
   };
 
   const commitCurrentDesign = () => {
-    let committed = false;
+    // Decide success from current state. Do not set a flag inside the setState
+    // updater — React 19 may skip eager updater execution when the provider
+    // fiber already has pending lanes (e.g. pricing settings load), which made
+    // "Add Another Magnet Design" return false and show a false error.
+    if (!isDraftComplete(order)) {
+      return false;
+    }
 
     setOrder(prev => {
       if (!isDraftComplete(prev)) {
         return prev;
       }
 
-      committed = true;
-      const nextDesigns = [...(prev.designs || []), draftToDesign(prev)];
       return {
         ...prev,
         ...createEmptyDraft(),
         customerInfo: prev.customerInfo,
-        designs: nextDesigns,
+        designs: [...(prev.designs || []), draftToDesign(prev)],
       };
     });
 
-    return committed;
+    return true;
   };
 
   const startAnotherDesign = () => {
-    let ok = false;
+    const hasSavedDesigns = (order.designs || []).length > 0;
+    const draftComplete = isDraftComplete(order);
+    const draftStarted = Boolean(order.photo || order.magnetType || order.croppedImage);
+
+    if (!draftComplete && !hasSavedDesigns) {
+      return false;
+    }
+
+    // An unfinished draft must be finished or cleared before starting another.
+    if (!draftComplete && draftStarted) {
+      return false;
+    }
+
+    const designCount = draftComplete
+      ? (order.designs || []).length + 1
+      : (order.designs || []).length;
+
+    if (designCount === 0) {
+      return false;
+    }
 
     setOrder(prev => {
-      const hasSavedDesigns = (prev.designs || []).length > 0;
-      const draftComplete = isDraftComplete(prev);
-      const draftStarted = Boolean(prev.photo || prev.magnetType || prev.croppedImage);
+      const prevHasSavedDesigns = (prev.designs || []).length > 0;
+      const prevDraftComplete = isDraftComplete(prev);
+      const prevDraftStarted = Boolean(prev.photo || prev.magnetType || prev.croppedImage);
 
-      if (!draftComplete && !hasSavedDesigns) {
+      if (!prevDraftComplete && !prevHasSavedDesigns) {
         return prev;
       }
 
-      // An unfinished draft must be finished or cleared before starting another.
-      if (!draftComplete && draftStarted) {
+      if (!prevDraftComplete && prevDraftStarted) {
         return prev;
       }
 
-      const nextDesigns = draftComplete
+      const nextDesigns = prevDraftComplete
         ? [...(prev.designs || []), draftToDesign(prev)]
         : [...(prev.designs || [])];
 
@@ -376,7 +398,6 @@ export function OrderProvider({ children }) {
         return prev;
       }
 
-      ok = true;
       return {
         ...prev,
         ...createEmptyDraft(),
@@ -385,7 +406,7 @@ export function OrderProvider({ children }) {
       };
     });
 
-    return ok;
+    return true;
   };
 
   const removeDesign = (designId) => {
