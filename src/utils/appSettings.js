@@ -4,8 +4,8 @@ const SETTINGS_TABLE = 'app_settings';
 export const defaultPricingSettings = {
   roundMagnetPrice: 5,
   rectangleMagnetPrice: 7,
-  promotionText: '',
-  promotionEnabled: false,
+  promotionText: '3 for $12 | 5 for $18 | 10 for $35 | Orders over 25 - $3 each',
+  promotionEnabled: true,
 };
 
 const settingKeys = {
