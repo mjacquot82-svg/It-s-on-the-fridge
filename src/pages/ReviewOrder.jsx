@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useOrder } from '../context/useOrder';
 import { getPreviewDimensions } from '../utils/cropUtils';
 import { getDesignsTotalQuantity, getMagnetTypeLabel, isDraftComplete } from '../utils/customDesigns';
-import { formatCurrency, getCustomDesignsTotal, getMagnetPrice } from '../utils/pricing';
+import { formatCurrency, getCustomDesignsTotal, getMagnetPrice, getVolumeSavings } from '../utils/pricing';
 import '../styles/ReviewOrder.css';
 
 const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
@@ -130,6 +130,7 @@ export default function ReviewOrder({ onNext, onBack, onAddAnother }) {
   }, [savedDesigns, draftDesign]);
 
   const estimatedTotal = getCustomDesignsTotal(pricingSettings, allDesignsForTotals);
+  const volumeSavings = getVolumeSavings(pricingSettings, allDesignsForTotals);
   const totalQuantity = getDesignsTotalQuantity(allDesignsForTotals);
   const canSubmit = allDesignsForTotals.length > 0;
 
@@ -341,6 +342,13 @@ export default function ReviewOrder({ onNext, onBack, onAddAnother }) {
             <span className="label">Estimated Total:</span>
             <span className="value">{formatCurrency(estimatedTotal)}</span>
           </div>
+
+          {volumeSavings > 0.009 && (
+            <div className="summary-item">
+              <span className="label">Volume savings:</span>
+              <span className="value">-{formatCurrency(volumeSavings)}</span>
+            </div>
+          )}
 
           {order.customerInfo.notes && (
             <div className="summary-item">
