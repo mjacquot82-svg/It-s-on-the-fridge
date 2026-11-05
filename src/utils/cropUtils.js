@@ -285,6 +285,14 @@ export async function optimizeOrderImagesForSubmission(order) {
   };
 }
 
+export async function optimizeCustomDesignsForSubmission(designs) {
+  const optimized = [];
+  for (const design of designs) {
+    optimized.push(await optimizeOrderImagesForSubmission(design));
+  }
+  return optimized;
+}
+
 /**
  * Generates the final image from react-easy-crop's croppedAreaPixels output.
  */

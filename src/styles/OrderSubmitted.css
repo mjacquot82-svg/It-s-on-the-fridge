@@ -211,3 +211,16 @@
     padding: 10px 0;
   }
 }
+
+.submitted-designs {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.submitted-design-item {
+  background: var(--color-soft, #f5f8fa);
+  border-radius: 12px;
+  padding: 12px;
+}

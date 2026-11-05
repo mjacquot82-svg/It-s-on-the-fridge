@@ -16,3 +16,9 @@ export function getMagnetPrice(settings, magnetType) {
 export function getOrderTotal(settings, magnetType, quantity) {
   return getMagnetPrice(settings, magnetType) * (Number(quantity) || 0);
 }
+
+export function getCustomDesignsTotal(settings, designs) {
+  return (designs || []).reduce((total, design) => {
+    return total + getOrderTotal(settings, design.magnetType, design.quantity);
+  }, 0);
+}

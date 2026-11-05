@@ -2,7 +2,8 @@ import { useOrder } from '../context/useOrder';
 import '../styles/MagnetTypeSelection.css';
 
 export default function MagnetTypeSelection({ onNext, onBack }) {
-  const { setMagnetType } = useOrder();
+  const { setMagnetType, order } = useOrder();
+  const hasSavedDesigns = (order.designs || []).length > 0;
 
   const handleSelectType = (type) => {
     setMagnetType(type);
@@ -12,8 +13,12 @@ export default function MagnetTypeSelection({ onNext, onBack }) {
   return (
     <div className="magnet-type-screen">
       <div className="type-content">
-        <h1>Choose Your Magnet Shape</h1>
-        <p className="subtitle">Pick the shape that works best for your photo.</p>
+        <h1>{hasSavedDesigns ? 'Add Another Magnet Shape' : 'Choose Your Magnet Shape'}</h1>
+        <p className="subtitle">
+          {hasSavedDesigns
+            ? 'Pick the shape for your next custom design. Your other magnets stay in this order.'
+            : 'Pick the shape that works best for your photo.'}
+        </p>
 
         <div className="type-options">
           <button
@@ -41,7 +46,7 @@ export default function MagnetTypeSelection({ onNext, onBack }) {
 
         <div className="action-buttons">
           <button className="back-button" onClick={onBack}>
-            Back
+            {hasSavedDesigns ? 'Back to Review' : 'Back'}
           </button>
         </div>
       </div>

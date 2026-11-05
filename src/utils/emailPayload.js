@@ -1,19 +1,19 @@
+import { getMagnetTypeLabel, normalizeCustomDesigns } from './customDesigns';
+
 /**
  * Creates an email payload structure for sending order details to Jennifer
  * @param {Object} order - The complete order object
  * @returns {Object} Email payload with all necessary information
  */
 export function createEmailPayload(order) {
+  const designs = normalizeCustomDesigns(order);
+  const totalQuantity = designs.reduce((total, design) => total + (Number(design.quantity) || 0), 0);
+
   return {
-    // Email metadata
-    to: 'jennifer@example.com', // Will be replaced with actual email
+    to: 'jennifer@example.com',
     subject: `New Magnet Order - ${order.customerInfo.firstName} ${order.customerInfo.lastName}`,
-    
-    // Order identification
     orderId: order.id,
     orderDate: order.submittedAt,
-    
-    // Customer information
     customer: {
       firstName: order.customerInfo.firstName,
       lastName: order.customerInfo.lastName,
@@ -22,51 +22,48 @@ export function createEmailPayload(order) {
       email: order.customerInfo.email,
       notes: order.customerInfo.notes || 'None',
     },
-    
-    // Product information
     product: {
-      type: order.magnetType,
-      displayType: order.magnetType === 'round' ? 'Round Magnet' : 'Rectangle Magnet',
-      quantity: order.customerInfo.quantity,
+      type: designs[0]?.magnetType || order.magnetType,
+      displayType: getMagnetTypeLabel(designs[0]?.magnetType || order.magnetType),
+      quantity: totalQuantity || order.customerInfo.quantity,
+      designCount: designs.length || 1,
     },
-    
-    // Image data
+    designs: designs.map((design, index) => ({
+      index: index + 1,
+      type: design.magnetType,
+      displayType: getMagnetTypeLabel(design.magnetType),
+      quantity: design.quantity,
+    })),
     images: {
       original: {
-        data: order.photo,
+        data: designs[0]?.photo || order.photo,
         description: 'Original Customer Photo',
       },
       cropped: {
-        data: order.croppedImage,
+        data: designs[0]?.croppedImage || order.croppedImage,
         description: 'Print-Ready Magnet Image',
       },
     },
-    
-    // Crop information (for reference)
     cropDetails: {
       coordinates: {
-        x: order.crop.x,
-        y: order.crop.y,
+        x: designs[0]?.crop?.x ?? order.crop?.x,
+        y: designs[0]?.crop?.y ?? order.crop?.y,
       },
-      zoom: order.zoom,
-      magnetType: order.magnetType,
+      zoom: designs[0]?.zoom ?? order.zoom,
+      magnetType: designs[0]?.magnetType || order.magnetType,
+      designCount: designs.length || 1,
     },
-    
-    // HTML Email template
-    htmlContent: generateEmailHTML(order),
-    
-    // Plain text version
-    textContent: generateEmailText(order),
+    htmlContent: generateEmailHTML(order, designs, totalQuantity),
+    textContent: generateEmailText(order, designs, totalQuantity),
   };
 }
 
-/**
- * Generate HTML email content
- */
-function generateEmailHTML(order) {
+function generateEmailHTML(order, designs, totalQuantity) {
   const customerName = `${order.customerInfo.firstName} ${order.customerInfo.lastName}`;
-  const magnetType = order.magnetType === 'round' ? 'Round Magnet' : 'Rectangle Magnet';
-  
+  const designRows = designs.map((design, index) => `
+      <p><span class="label">Magnet ${index + 1}:</span> ${getMagnetTypeLabel(design.magnetType)} × ${design.quantity}</p>
+  `).join('');
+
   return `
 <!DOCTYPE html>
 <html>
@@ -87,13 +84,13 @@ function generateEmailHTML(order) {
       <h1>It's On The Fridge</h1>
       <p>New custom magnet order</p>
     </div>
-    
+
     <div class="section">
       <h2>Order Information</h2>
       <p><span class="label">Order ID:</span> ${order.id}</p>
       <p><span class="label">Order Date:</span> ${new Date(order.submittedAt).toLocaleString()}</p>
     </div>
-    
+
     <div class="section">
       <h2>Customer Details</h2>
       <p><span class="label">Name:</span> ${customerName}</p>
@@ -101,26 +98,25 @@ function generateEmailHTML(order) {
       <p><span class="label">Email:</span> ${order.customerInfo.email}</p>
       ${order.customerInfo.notes ? `<p><span class="label">Notes:</span> ${order.customerInfo.notes}</p>` : ''}
     </div>
-    
+
     <div class="section">
       <h2>Product Details</h2>
-      <p><span class="label">Magnet Type:</span> ${magnetType}</p>
-      <p><span class="label">Quantity:</span> ${order.customerInfo.quantity}</p>
+      ${designRows || `<p><span class="label">Magnet Type:</span> ${getMagnetTypeLabel(order.magnetType)}</p>
+      <p><span class="label">Quantity:</span> ${order.customerInfo.quantity}</p>`}
+      <p><span class="label">Total Magnets:</span> ${totalQuantity || order.customerInfo.quantity}</p>
     </div>
-    
+
     <div class="section">
       <h2>Attached Images</h2>
-      <p><strong>Original Customer Photo:</strong> the photo the customer uploaded.</p>
-      <p><strong>Print-Ready Magnet Image:</strong> the cropped image Jennifer should use for printing.</p>
-      <img src="cid:cropped-image" alt="Final Magnet Preview" class="image-preview" />
+      <p>Each magnet design includes an original customer photo and a print-ready cropped image.</p>
     </div>
-    
+
     <div class="section next-steps">
       <h3>Next Steps</h3>
       <ul>
         <li>Jennifer will contact the customer to confirm details</li>
         <li>Confirm pickup and payment</li>
-        <li>Print the magnet using the print-ready image</li>
+        <li>Print each magnet using its print-ready image</li>
       </ul>
     </div>
   </div>
@@ -129,14 +125,13 @@ function generateEmailHTML(order) {
   `;
 }
 
-/**
- * Generate plain text email content
- */
-function generateEmailText(order) {
+function generateEmailText(order, designs, totalQuantity) {
   const customerName = `${order.customerInfo.firstName} ${order.customerInfo.lastName}`;
-  const magnetType = order.magnetType === 'round' ? 'Round Magnet' : 'Rectangle Magnet';
   const orderDate = new Date(order.submittedAt).toLocaleString();
-  
+  const designLines = designs.map((design, index) => (
+    `- Magnet ${index + 1}: ${getMagnetTypeLabel(design.magnetType)} x ${design.quantity}`
+  ));
+
   return `
 IT'S ON THE FRIDGE
 New custom magnet order
@@ -152,28 +147,24 @@ Customer Details:
 ${order.customerInfo.notes ? `- Notes: ${order.customerInfo.notes}` : ''}
 
 Product Details:
-- Magnet Type: ${magnetType}
-- Quantity: ${order.customerInfo.quantity}
+${designLines.length ? designLines.join('\n') : `- Magnet Type: ${getMagnetTypeLabel(order.magnetType)}\n- Quantity: ${order.customerInfo.quantity}`}
+- Total Magnets: ${totalQuantity || order.customerInfo.quantity}
 
 Attached Images:
-- Original Customer Photo: the photo the customer uploaded.
-- Print-Ready Magnet Image: the cropped image Jennifer should use for printing.
+- Each design includes an original customer photo and a print-ready magnet image.
 
 Next Steps:
 1. Jennifer will contact the customer to confirm details
 2. Confirm pickup and payment
-3. Print the magnet using the print-ready image
+3. Print each magnet using its print-ready image
   `;
 }
 
-/**
- * Export order data as JSON for storage or debugging
- */
 export function exportOrderAsJSON(order) {
+  const designs = normalizeCustomDesigns(order);
   return JSON.stringify({
     id: order.id,
     submittedAt: order.submittedAt,
-    magnetType: order.magnetType,
     customer: {
       firstName: order.customerInfo.firstName,
       lastName: order.customerInfo.lastName,
@@ -181,8 +172,12 @@ export function exportOrderAsJSON(order) {
       email: order.customerInfo.email,
       notes: order.customerInfo.notes,
     },
-    quantity: order.customerInfo.quantity,
-    cropCoordinates: order.crop,
-    zoom: order.zoom,
+    designs: designs.map(design => ({
+      magnetType: design.magnetType,
+      quantity: design.quantity,
+      cropCoordinates: design.crop,
+      zoom: design.zoom,
+    })),
+    totalQuantity: designs.reduce((total, design) => total + (Number(design.quantity) || 0), 0),
   }, null, 2);
 }
